@@ -188,11 +188,11 @@
         return a.h('button', { class: 'lamina', onclick: () => { a.sfx.clic(); pintar(l); } }, mini, a.h('span', {}, l.nombre));
       };
       const reales = a.D.dibujos || [];
-      const grupos = [...a.D.mundos.map(m => [m.icono + ' ' + m.titulo, reales.filter(d => d.mundo === m.id)]), ['🌟 Otros', reales.filter(d => !a.D.mundos.some(m => m.id === d.mundo))]].filter(g => g[1].length);
+      const grupos = [...a.D.mundos.map(m => [m.icono + ' ' + m.titulo, reales.filter(d => d.mundo === m.id)]), ['🌟 Otros', reales.filter(d => d.mundo !== 'mandala' && !a.D.mundos.some(m => m.id === d.mundo))]].filter(g => g[1].length);
       a.cuerpo.replaceChildren(a.instr('¿Qué quieres colorear?'),
         ...grupos.flatMap(([t, ls]) => [a.h('div', { class: 'seccion' }, t), a.h('div', { class: 'laminas' }, ls.map(d => tarjeta({ img: d.img, nombre: d.t })))]),
         a.h('div', { class: 'seccion' }, '✏️ Personajes sencillos'), a.h('div', { class: 'laminas' }, Object.keys(lams).map(k => tarjeta({ k, img: lams[k], nombre: (a.D.personajes[k] || [k])[0] }))),
-        a.h('div', { class: 'seccion' }, '🌀 Mandalas'), a.h('div', { class: 'laminas' }, Object.keys(PLANTILLAS).filter(k => k.startsWith('mandala')).map(k => tarjeta({ k, plantilla: true, nombre: 'Mandala ' + k.split(' ')[1] }))),
+        a.h('div', { class: 'seccion' }, '🌀 Mandalas'), a.h('div', { class: 'laminas' }, [...reales.filter(d => d.mundo === 'mandala').map(d => tarjeta({ img: d.img, nombre: d.t })), ...Object.keys(PLANTILLAS).filter(k => k.startsWith('mandala')).map(k => tarjeta({ k, plantilla: true, nombre: 'Mandala ' + (k.split(' ')[1] || '0') }))]),
         a.h('div', { class: 'seccion' }, '🌸 Dibujos fáciles'), a.h('div', { class: 'laminas' }, Object.keys(PLANTILLAS).filter(k => !k.startsWith('mandala')).map(k => tarjeta({ k, plantilla: true, nombre: k.charAt(0).toUpperCase() + k.slice(1) }))));
       a.cuerpo.style.overflowY = 'auto';
     };

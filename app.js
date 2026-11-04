@@ -661,7 +661,7 @@ const App = (() => {
   }
 
   /* ---------------- Arranque ---------------- */
-  const VERSION = 'cea9f409438b';
+  const VERSION = '51c795c868bd';
   let ACTUALIZANDO = false;
   // Cada vez que se abre: una consulta pequeñita (version.json). Si es la misma versión, no se descarga nada.
   async function buscarActualizacion(reg) {
