@@ -33,9 +33,19 @@
       let ok = 0, tot = 0;
       const { bar, puntuar } = barraJuego(a, 'Hasta ' + max, () => M.baloncesto(a));
       const pizarra = a.h('div', { class: 'tm-pizarra' });
-      const aro = a.h('div', { class: 'tm-aro' }, '🏀');
+      const aro = a.h('div', { class: 'tm-aro' });
       const balones = a.h('div', { class: 'tm-balones' });
-      const pista = a.h('div', { class: 'tm-pista' }, a.h('div', { class: 'tm-canasta' }, a.h('div', { class: 'tm-tablero' }), a.h('div', { class: 'tm-red' })), pizarra, aro, balones);
+      const canasta = a.rec('canasta') ? a.h('img', { class: 'tm-canasta2', src: a.rec('canasta'), alt: '' }) : a.h('div', { class: 'tm-canasta' }, a.h('div', { class: 'tm-tablero' }), a.h('div', { class: 'tm-red' }));
+      const pista = a.h('div', { class: 'tm-pista' + (a.rec('f-baloncesto') ? ' foto' : ''), style: a.rec('f-baloncesto') ? { backgroundImage: `url(${a.rec('f-baloncesto')})` } : {} }, canasta, pizarra, aro, balones);
+      const tiro = (b) => {
+        // el balón vuela en parábola hasta la canasta y entra por la red
+        const r = b.getBoundingClientRect(), c = canasta.getBoundingClientRect();
+        const dx = c.left + c.width * 0.42 - (r.left + r.width / 2), dy = c.top + c.height * 0.42 - (r.top + r.height / 2);
+        b.style.zIndex = 9;
+        const an = b.animate([{ transform: 'translate(0,0) rotate(0) scale(1)' }, { transform: `translate(${dx * 0.5}px,${dy - 180}px) rotate(300deg) scale(.85)`, offset: 0.55 },
+          { transform: `translate(${dx}px,${dy}px) rotate(540deg) scale(.6)`, offset: 0.85 }, { transform: `translate(${dx}px,${dy + 90}px) rotate(600deg) scale(.55)`, opacity: 0 }], { duration: 1100, easing: 'cubic-bezier(.3,.1,.6,1)', fill: 'forwards' });
+        an.onfinish = () => { canasta.classList.remove('swish'); void canasta.offsetWidth; canasta.classList.add('swish'); a.sfx.moneda(); a.confeti(); };
+      };
       const ronda = () => {
         const n = a.ent(max > 99 ? 100 : max > 19 ? 10 : 1, max);
         const c = Math.floor(n / 100), d = Math.floor(n / 10) % 10, u = n % 10;
@@ -48,12 +58,12 @@
         for (const x of a.mezclar(alt)) { if (cand.size >= 4) break; if (x > 0 && x <= Math.max(max, 19) + 10 && x !== n) cand.add(x); }
         while (cand.size < 4) cand.add(a.ent(1, max));
         balones.replaceChildren(...a.mezclar([...cand]).map(v => {
-          const b = a.h('button', { class: 'tm-balon' }, String(v));
+          const b = a.h('button', { class: 'tm-balon' + (a.rec('balon') ? ' foto' : ''), style: a.rec('balon') ? { backgroundImage: `url(${a.rec('balon')})` } : {} }, a.h('span', {}, String(v)));
           b.onclick = () => {
             if (balones.dataset.bloq) return; tot++;
             if (v === n) {
               ok++; balones.dataset.bloq = 1; a.acierto(); puntuar(ok, tot);
-              b.classList.add('lanzar'); a.habla(v);
+              tiro(b); a.habla(v);
               setTimeout(() => aviso(a, pista, '¡Muy bien!', true), 600);
               setTimeout(() => { delete balones.dataset.bloq; ronda(); }, 1700);
             } else { a.fallo(b); puntuar(ok, tot); b.style.visibility = 'hidden'; aviso(a, pista, 'Inténtalo otra vez', false); }
@@ -94,7 +104,7 @@
     const empezar = (cfg, nombre) => {
       let ok = 0, tot = 0;
       const { bar, puntuar } = barraJuego(a, (dragon ? 'Ordenar: ' : 'Series: ') + nombre, () => M.serie(a, d));
-      const escena = a.h('div', { class: 'tm-escena ' + (dragon ? 'dragon-esc' : 'gusano-esc') });
+      const escena = a.h('div', { class: 'tm-escena ' + (dragon ? 'dragon-esc' : 'gusano-esc'), style: dragon && a.rec('f-dragon') ? { backgroundImage: `linear-gradient(#fff4,#fff4),url(${a.rec('f-dragon')})`, backgroundSize: 'cover' } : a.rec('f-campo') ? { backgroundImage: `url(${a.rec('f-campo')})`, backgroundSize: 'cover' } : {} });
       const ronda = () => {
         let valores, huecos;
         if (dragon) {
@@ -113,7 +123,7 @@
           huecos = a.mezclar([1, 2, 3, 4, 5].slice(0)).slice(0, 3).sort();
         }
         let colocados = 0;
-        const cuerpo = a.h('div', { class: 'tm-cuerpo' }, a.h('div', { class: 'tm-cabeza' }, dragon ? '🐲' : '🐛'),
+        const cuerpo = a.h('div', { class: 'tm-cuerpo' }, a.h('div', { class: 'tm-cabeza' }, dragon && a.rec('dragon') ? a.h('img', { src: a.rec('dragon'), alt: '' }) : dragon ? '🐲' : '🐛'),
           valores.map((v, k) => huecos.includes(k) ? a.h('div', { class: 'tm-seg hueco tm-destino', 'data-k': k }) : a.h('div', { class: 'tm-seg' }, v)));
         if (!dragon) cuerpo.append(a.h('div', { class: 'tm-cola' }));
         const fichas = huecos.map(k => valores[k]);
@@ -194,7 +204,11 @@
   const MONEDAS = { 1: ['1 c', 'cobre'], 2: ['2 c', 'cobre'], 5: ['5 c', 'cobre'], 10: ['10 c', 'oro'], 20: ['20 c', 'oro'], 50: ['50 c', 'oro'], 100: ['1 €', 'bi'], 200: ['2 €', 'bi2'],
     500: ['5 €', 'billete b5'], 1000: ['10 €', 'billete b10'], 2000: ['20 €', 'billete b20'] };
   const fmt = (c) => c >= 100 ? (c % 100 ? (c / 100).toFixed(2).replace('.', ',') : c / 100) + ' €' : c + ' c';
-  const dinero = (a, v, peq) => { const [l, cl] = MONEDAS[v]; return a.h('div', { class: (cl.startsWith('billete') ? '' : 'tm-moneda ') + cl + (peq ? ' peq' : '') }, l); };
+  const dinero = (a, v, peq) => {
+    const [l, cl] = MONEDAS[v]; const src = a.rec((v >= 500 ? 'din-b' : 'din-m') + v);
+    if (src) return a.h('div', { class: (v >= 500 ? 'din-billete' : 'din-moneda') + ' din-' + v + (peq ? ' peq' : ''), 'aria-label': l }, a.h('img', { src, alt: l, draggable: false }));
+    return a.h('div', { class: (cl.startsWith('billete') ? '' : 'tm-moneda ') + cl + (peq ? ' peq' : '') }, l);
+  };
   M.tienda = (a, d) => {
     let mezcla = false;
     const juguetes = d.juguetes || ['🧸', '✈️', '🦁', '🦒', '🚂', '🪀', '🪁', '🎨', '🧩', '🛴', '🎲', '🦖', '🚁', '🛻', '🪆', '🎻'];

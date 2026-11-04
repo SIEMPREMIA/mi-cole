@@ -55,7 +55,7 @@
       a.progreso(i, RONDAS);
       const tipos = a.mezclar(d.objetos).slice(0, 4); const objetivo = tipos[0]; const cuantos = a.ent(3, 9);
       const items = []; tipos.forEach((t, k) => { const n = k === 0 ? cuantos : a.ent(2, 6); for (let j = 0; j < n; j++) items.push(t); });
-      let tocados = 0; const modo = i % 2 ? 'contar' : 'tocar';
+      let tocados = 0, cofre = null; const modo = i % 2 ? 'contar' : 'tocar';
       const escena = a.h('div', { class: 'bus-escena' });
       const usadas = [];
       a.mezclar(items).forEach(t => {
@@ -63,7 +63,8 @@
         const b = a.h('button', { class: 'bus-obj', style: { left: x + '%', top: y + '%', transform: `rotate(${a.ent(-20, 20)}deg) scale(${(0.8 + Math.random() * 0.5).toFixed(2)})` } }, t[0]);
         b.onclick = () => {
           if (modo !== 'tocar' || b.classList.contains('hecho')) return;
-          if (t === objetivo) { b.classList.add('hecho'); tocados++; a.sfx.pop(); b.append(a.h('i', { class: 'bus-num' }, tocados)); if (tocados === cuantos) { a.acierto(); a.habla(cuantos + ' ' + t[1]); setTimeout(() => { i++; paso(); }, 1200); } }
+          if (t === objetivo) { b.classList.add('hecho'); tocados++; a.sfx.pop(); b.append(a.h('i', { class: 'bus-num' }, tocados));
+            if (cofre) { cofre.src = a.rec('cofre'); const r = b.getBoundingClientRect(), c = cofre.getBoundingClientRect(); b.animate([{ transform: b.style.transform }, { transform: `translate(${c.left + c.width / 2 - r.left - r.width / 2}px,${c.top + c.height / 3 - r.top - r.height / 2}px) scale(.3)`, opacity: .2 }], { duration: 650, easing: 'ease-in', fill: 'forwards' }); cofre.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }], { duration: 400, delay: 600 }); } if (tocados === cuantos) { a.acierto(); a.habla(cuantos + ' ' + t[1]); setTimeout(() => { i++; paso(); }, 1200); } }
           else { a.fallo(b); a.pista('Eso no. Busca ' + objetivo[1] + '.'); }
         };
         escena.append(b);
@@ -72,7 +73,9 @@
       const abajo = modo === 'contar' ? a.h('div', { class: 'opciones', style: { gridTemplateColumns: 'repeat(4,1fr)' } }, a.mezclar([...new Set([cuantos, cuantos + 1, cuantos - 1, cuantos + 2])]).map(v => a.h('button', { class: 'op', onclick: (e) => { if (v === cuantos) { a.acierto(e.currentTarget); setTimeout(() => { i++; paso(); }, 900); } else a.fallo(e.currentTarget); } }, String(v)))) : null;
       a.pista('Cuenta con el dedo de uno en uno.');
       a.cuerpo.replaceChildren(...[a.instr(enunciado), a.h('div', { class: 'bus-fondo' }, escena), abajo].filter(Boolean));
-      if (a.mundo && a.D.fondos && a.D.fondos[a.mundo.id]) escena.style.background = `url(${a.D.fondos[a.mundo.id][0]}) center/cover`;
+      if (d.fondo && a.rec(d.fondo)) escena.style.background = `url(${a.rec(d.fondo)}) center/cover`;
+      else if (a.mundo && a.D.fondos && a.D.fondos[a.mundo.id]) escena.style.background = `url(${a.D.fondos[a.mundo.id][0]}) center/cover`;
+      if (d.cofre && a.rec('cofre')) { cofre = a.h('img', { class: 'bus-cofre', src: a.rec(tocados ? 'cofre' : 'cofre-cerrado') || a.rec('cofre'), alt: '' }); escena.append(cofre); }
     };
     paso();
   };

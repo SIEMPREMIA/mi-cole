@@ -192,10 +192,16 @@ const App = (() => {
     VOZ = vs.find(v => /es[-_]ES/i.test(v.lang) && /(m[oó]nica|marisol|paulina).*(mejorad|premium|enhanced)/i.test(v.name)) || vs.find(v => /es[-_]ES/i.test(v.lang) && /m[oó]nica|paulina|marisol|google/i.test(v.name)) || vs.find(v => /es[-_]ES/i.test(v.lang)) || vs.find(v => /^es/i.test(v.lang)) || null;
   }
   if ('speechSynthesis' in window) { cargarVoz(); speechSynthesis.onvoiceschanged = cargarVoz; }
+  // Texto preparado para la voz: céntimos, euros, signos
+  function leible(t) {
+    return String(t).replace(/[_]{2,}/g, ' hueco ').replace(/(\d+),(\d{2})\s?€/g, (m, e, c) => e + ' euros con ' + (+c) + ' céntimos')
+      .replace(/(\d+)\s?c\b/g, '$1 céntimos').replace(/\b1\s?€/g, 'un euro').replace(/(\d+)\s?€/g, '$1 euros').replace(/€/g, ' euros')
+      .replace(/−/g, ' menos ').replace(/×/g, ' por ').replace(/\s=\s\?/g, ' es igual a… ');
+  }
   function habla(texto, vel = 0.9) {
     if (!('speechSynthesis' in window)) return;
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(String(texto).replace(/[_]{2,}/g, ' hueco '));
+    const u = new SpeechSynthesisUtterance(leible(texto));
     u.lang = 'es-ES'; u.rate = Math.min(1.05, vel + 0.05); u.pitch = 1.6; if (VOZ) u.voice = VOZ; speechSynthesis.speak(u); // voz aguda, de niño
   }
   // Devuelve una frase preparada (para el karaoke de lectura)
@@ -207,35 +213,44 @@ const App = (() => {
 
   /* ---------------- Arrastrar (táctil) ---------------- */
   // Arrastra con el dedo; si se toca sin mover, cuenta como "tocar".
+  // Arrastrar con el dedo. Robusto: escucha en la ventana, limpia siempre la copia y "imanta" al hueco más cercano.
+  function quitarFantasmas() { document.querySelectorAll('body > .arrastrando').forEach(f => f.remove()); }
   function arrastrable(el, { destinos, alSoltar, alTocar, clon = true }) {
     el.style.touchAction = 'none';
     el.addEventListener('pointerdown', (ev) => {
       if (el.dataset.bloq) return;
-      ev.preventDefault();
-      const x0 = ev.clientX, y0 = ev.clientY; let fant = null, sobre = null, movido = false;
-      const id = ev.pointerId; try { el.setPointerCapture(id); } catch (e) { }
+      ev.preventDefault(); quitarFantasmas();
+      const x0 = ev.clientX, y0 = ev.clientY; let fant = null, sobre = null, movido = false, acabado = false;
+      const id = ev.pointerId;
+      const cercano = (x, y) => {
+        if (!destinos) return null;
+        const bajo = document.elementFromPoint(x, y); const d = bajo && bajo.closest(destinos); if (d) return d;
+        let mejor = null, dist = Infinity;
+        document.querySelectorAll(destinos).forEach(z => { const r = z.getBoundingClientRect(); if (!r.width) return; const dx = Math.max(r.left - x, 0, x - r.right), dy = Math.max(r.top - y, 0, y - r.bottom); const dd = Math.hypot(dx, dy); if (dd < dist) { dist = dd; mejor = z; } });
+        return dist < 70 ? mejor : null;
+      };
       const mover = (e) => {
-        if (e.pointerId !== id) return;
+        if (e.pointerId !== id || acabado) return;
         if (!movido && Math.hypot(e.clientX - x0, e.clientY - y0) < 8) return;
         if (!movido) {
           movido = true;
           if (clon) { const r = el.getBoundingClientRect(); fant = el.cloneNode(true); fant.classList.add('arrastrando'); fant.style.width = r.width + 'px'; document.body.append(fant); el.style.opacity = '.35'; }
         }
         if (fant) { fant.style.left = e.clientX + 'px'; fant.style.top = e.clientY + 'px'; }
-        const bajo = document.elementFromPoint(e.clientX, e.clientY);
-        const d = bajo && destinos ? bajo.closest(destinos) : null;
+        const d = cercano(e.clientX, e.clientY);
         if (d !== sobre) { sobre && sobre.classList.remove('encima'); sobre = d; sobre && sobre.classList.add('encima'); }
       };
       const fin = (e) => {
-        if (e.pointerId !== id) return;
-        el.removeEventListener('pointermove', mover); el.removeEventListener('pointerup', fin); el.removeEventListener('pointercancel', fin);
-        if (fant) fant.remove(); el.style.opacity = '';
+        if (e.pointerId !== id || acabado) return; acabado = true;
+        window.removeEventListener('pointermove', mover); window.removeEventListener('pointerup', fin); window.removeEventListener('pointercancel', fin);
+        if (fant) fant.remove(); quitarFantasmas(); el.style.opacity = '';
         sobre && sobre.classList.remove('encima');
         if (!movido) { alTocar && alTocar(el); return; }
-        if (e.type === 'pointercancel') return;
-        if (sobre && alSoltar) alSoltar(sobre, el, e); else if (alSoltar) alSoltar(null, el, e);
+        if (!el.isConnected) return;
+        const d = sobre || cercano(e.clientX, e.clientY);
+        if (alSoltar) alSoltar(d || null, el, e);
       };
-      el.addEventListener('pointermove', mover); el.addEventListener('pointerup', fin); el.addEventListener('pointercancel', fin);
+      window.addEventListener('pointermove', mover); window.addEventListener('pointerup', fin); window.addEventListener('pointercancel', fin);
     });
   }
 
@@ -244,7 +259,7 @@ const App = (() => {
   function ir(fn, ...args) { pila.push([fn, args]); pintar(); }
   function atras() { document.body.classList.remove('ficha-grande'); speechSynthesis && speechSynthesis.cancel(); cerrarModal(); if (pila.length > 1) pila.pop(); pintar(); }
   function pintar() {
-    limpiarTemporizadores();
+    limpiarTemporizadores(); quitarFantasmas();
     const [fn, args] = pila[pila.length - 1];
     const app = $('#app'); app.innerHTML = ''; fn(app, ...args);
   }
@@ -361,8 +376,21 @@ const App = (() => {
           losa(pj(k, 'pj', 0), D.personajes[k][0], k === guia() ? '#2fb45a' : m.color, () => { P.guia = k; guardarProgreso(); sfx.bien(); habla('¡Hola! Soy ' + D.personajes[k][0]); atras(); }, null, i)))])));
   }
 
+  // Niveles por trimestre (2º de Primaria): lo de más adelante se abre con la fecha, con estrellas o desde «Papá y mamá»
+  const TRIM = { 2: { fecha: '2027-01-08', estrellas: 80, nombre: '2º trimestre' }, 3: { fecha: '2027-03-30', estrellas: 200, nombre: '3º trimestre' } };
+  function abierto(j) {
+    const t = j.trim || 1; if (t <= 1 || P.todoAbierto) return true;
+    const c = TRIM[t]; return new Date() >= new Date(c.fecha) || P.estrellas >= c.estrellas;
+  }
   function tarjetaJuego(j, k = 0) {
     const pjj = P.juegos[j.id];
+    if (!abierto(j)) {
+      const c = TRIM[j.trim];
+      const l = losa('🔒', j.titulo, '#b8b3d6', () => { sfx.mal(); modal('🔒 Todavía no', h('div', { style: { textAlign: 'center', fontSize: '22px' } },
+        h('p', {}, 'Este juego es del ' + c.nombre + '.'), h('p', {}, 'Se abre solo cuando llegue, o antes si consigues ' + c.estrellas + ' ⭐.'),
+        h('p', { class: 'subsaludo' }, 'Tienes ' + P.estrellas + ' ⭐. ¡Te faltan ' + Math.max(0, c.estrellas - P.estrellas) + '!'))); }, [h('span', { class: 'chapa' }, c.nombre)], k);
+      l.classList.add('cerrada'); return l;
+    }
     const extra = [j.clase ? h('span', { class: 'chapa' }, '🏫 clase') : null, pjj ? h('span', { class: 'hecho' }, '⭐'.repeat(pjj.mejor || 1)) : null];
     return losa(j.icono, j.titulo, j.color || colorArea(j), () => ir(jugar, j.id), extra, k);
   }
@@ -426,7 +454,8 @@ const App = (() => {
       h('div', { class: 'seccion' }, 'Ajustes'),
       h('div', { class: 'centro', style: { justifyContent: 'flex-start' } },
         h('label', { class: 'ajuste' }, h('input', { type: 'checkbox', checked: PREF.musica, onchange: (e) => Musica.musica(e.target.checked) }), ' 🎵 Música'),
-        h('label', { class: 'ajuste' }, h('input', { type: 'checkbox', checked: PREF.efectos, onchange: (e) => Musica.efectos(e.target.checked) }), ' 🔔 Efectos de sonido')),
+        h('label', { class: 'ajuste' }, h('input', { type: 'checkbox', checked: PREF.efectos, onchange: (e) => Musica.efectos(e.target.checked) }), ' 🔔 Efectos de sonido'),
+        h('label', { class: 'ajuste' }, h('input', { type: 'checkbox', checked: !!P.todoAbierto, onchange: (e) => { P.todoAbierto = e.target.checked; guardarProgreso(); } }), ' 🔓 Abrir todos los niveles (2º y 3º trimestre)')),
       h('div', { class: 'centro', style: { justifyContent: 'flex-start' } },
         h('button', { class: 'btn', style: { '--c': '#f39c33' }, onclick: () => { if (confirm('¿Borrar todo el progreso?')) { P = { estrellas: 0, juegos: {}, dias: [], tiempo: {}, peg: 0 }; guardarProgreso(); atras(); } } }, 'Reiniciar progreso'),
         h('button', { class: 'btn', style: { '--c': '#ef4a5c' }, onclick: async () => { if (confirm('Se pedirá la contraseña la próxima vez. ¿Continuar?')) { await idbDel('k', 'clave'); location.reload(); } } }, 'Olvidar contraseña en este iPad'),
@@ -582,6 +611,14 @@ const App = (() => {
     const cuerpo = h('div', { class: 'cuerpo fijo' + (j.mundo ? ' mundo-juego' : '') });
     const mundoJ = j.mundo && D.mundos.find(m => m.id === j.mundo);
     if (mundoJ) Object.assign(cuerpo.style, fondoMundo(mundoJ, 0.45));
+    else {
+      // escenario ilustrado según el área (aula, pizarra, biblioteca…), con un velo para que se lea bien
+      const esc = { lengua: 'f-lengua', mates: 'f-mates', sociales: 'f-sociales', ciencias: 'f-ciencias', lectura: 'f-lectura' }[j.area];
+      const plato = /concurso/i.test(j.titulo) && j.tipo === 'quiz';
+      const f = rec(plato ? 'f-concurso' : esc);
+      if (f && !/^ww-|ficha|pintar|colorear/.test(j.tipo)) { cuerpo.style.background = `linear-gradient(rgba(255,255,255,${plato ? .25 : .55}),rgba(255,255,255,${plato ? .35 : .7})), url(${f}) center/cover no-repeat`; cuerpo.classList.add('con-escena'); }
+      if (plato) cuerpo.classList.add('plato');
+    }
     let amigosMundo = mundoJ ? Object.keys(D.personajes).filter(k => D.personajes[k][1] === mundoJ.id) : [];
     const conFoto = amigosMundo.filter(k => D.imagenes && D.imagenes[k]); if (conFoto.length) amigosMundo = conFoto;
     const quien = amigosMundo.length ? azar(amigosMundo) : guia();
@@ -602,7 +639,7 @@ const App = (() => {
     const t0 = Date.now(); const reloj = h('span', { class: 'crono' }, '⏱ 0:00');
     const tick = temporizador(() => { reloj.textContent = '⏱ ' + mmss((Date.now() - t0) / 1000); }, 1000);
     const api = {
-      j, D, h, $, azar, mezclar, ent, pj, pjPorNombre, sfx, habla, btnHablar, arrastrable, modal, cerrarModal, confeti, temporizador, espera, guardar, leer,
+      j, D, h, $, azar, mezclar, ent, rec, pj, pjPorNombre, sfx, habla, btnHablar, arrastrable, modal, cerrarModal, confeti, temporizador, espera, guardar, leer,
       cuerpo, color: colorArea(j), quien, nombreQuien, di, mundo: mundoJ,
       pista: (t) => { pistaActual = t; },
       progreso: (n, t) => { barra.style.width = Math.round(100 * Math.min(1, n / t)) + '%'; },
@@ -661,7 +698,7 @@ const App = (() => {
   }
 
   /* ---------------- Arranque ---------------- */
-  const VERSION = '51c795c868bd';
+  const VERSION = 'd2bb6a36db33';
   let ACTUALIZANDO = false;
   // Cada vez que se abre: una consulta pequeñita (version.json). Si es la misma versión, no se descarga nada.
   async function buscarActualizacion(reg) {
@@ -696,5 +733,6 @@ const App = (() => {
     pila.length = 0; ir(pantallaBloqueo);
   }
 
-  return { hablaUtt, Musica, pj, pjPorNombre, guia, arrancar, MOTORES, h, $, mezclar, azar, ent, ir, atras, abrir: (id) => ir(jugar, id), pantalla: (n) => ir({ asamblea, mundos, pegatinas, panelPadres, portada, inicio, elegirGuia }[n]), area: (id) => ir(area, id), mundo: (id) => ir(mundo, id), datos: () => D };
+  const rec = (n) => (D && D.rec && D.rec[n]) || null;
+  return { rec, hablaUtt, Musica, pj, pjPorNombre, guia, arrancar, MOTORES, h, $, mezclar, azar, ent, ir, atras, abrir: (id) => ir(jugar, id), pantalla: (n) => ir({ asamblea, mundos, pegatinas, panelPadres, portada, inicio, elegirGuia }[n]), area: (id) => ir(area, id), mundo: (id) => ir(mundo, id), datos: () => D };
 })();

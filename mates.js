@@ -131,11 +131,11 @@
       const meter = (v, cl, lab, tipo) => {
         if (caja.querySelector('.nota')) caja.querySelector('.nota').remove();
         pagado += v; dejado.push(v); a.sfx.clic();
-        caja.append(tipo === 'b' ? a.h('div', { class: 'billete', style: { background: cl, width: '100px', height: '54px', fontSize: '18px' } }, lab) : a.h('div', { class: 'moneda ' + cl, style: { width: '62px', fontSize: '14px' } }, lab));
+        const src = a.rec((tipo === 'b' ? 'din-b' : 'din-m') + v); caja.append(src ? a.h('div', { class: (tipo === 'b' ? 'din-billete' : 'din-moneda') + ' peq din-' + v }, a.h('img', { src, alt: lab })) : tipo === 'b' ? a.h('div', { class: 'billete', style: { background: cl, width: '100px', height: '54px', fontSize: '18px' } }, lab) : a.h('div', { class: 'moneda ' + cl, style: { width: '62px', fontSize: '14px' } }, lab));
         act();
       };
       const mon = a.h('div', { class: 'monedas' }, DINERO.filter(([v]) => v <= Math.max(precio, 200) * 1.5).map(([v, t, cl, lab]) => {
-        const e = t === 'b' ? a.h('div', { class: 'billete', style: { background: cl } }, lab) : a.h('div', { class: 'moneda ' + cl }, lab);
+        const src = a.rec((t === 'b' ? 'din-b' : 'din-m') + v); const e = src ? a.h('div', { class: (t === 'b' ? 'din-billete' : 'din-moneda') + ' din-' + v }, a.h('img', { src, alt: lab, draggable: false })) : t === 'b' ? a.h('div', { class: 'billete', style: { background: cl } }, lab) : a.h('div', { class: 'moneda ' + cl }, lab);
         a.arrastrable(e, { destinos: '.zona-pago', alTocar: () => meter(v, cl, lab, t), alSoltar: (z) => z && meter(v, cl, lab, t) });
         return e;
       }));
@@ -221,52 +221,80 @@
       const paso10 = i >= 4; const ini = paso10 ? a.ent(0, 5) * 10 : a.ent(0, 80); const salto = paso10 ? 10 : 1; const N = 11;
       const vals = Array.from({ length: N }, (_, k) => ini + k * salto);
       const ocultos = a.mezclar(vals.slice(1, -1)).slice(0, 3);
-      const recta = a.h('div', { class: 'recta' }, a.h('div', { class: 'linea' }));
+      const rana = a.h('div', { class: 'recta-rana' }, '🐸');
+      const recta = a.h('div', { class: 'recta2' }, a.h('div', { class: 'regla' }), rana);
+      const pos = (k) => (4 + (k / (N - 1)) * 92) + '%';
       vals.forEach((v, k) => {
-        const izq = (k / (N - 1)) * 100 + '%';
-        if (ocultos.includes(v)) recta.append(a.h('div', { class: 'marca hueco zona-recta', 'data-v': v, style: { left: izq } }));
-        else recta.append(a.h('div', { class: 'marca', style: { left: izq } }, a.h('b', {}, v)));
+        if (ocultos.includes(v)) recta.append(a.h('div', { class: 'r-hueco zona-recta', 'data-v': v, 'data-k': k, style: { left: pos(k) } }, '?'));
+        else recta.append(a.h('div', { class: 'r-num', style: { left: pos(k) } }, a.h('i'), a.h('b', {}, v)));
       });
-      let hechos = 0, fallado = false;
+      rana.style.left = pos(0);
+      let hechos = 0, fallado = false, elegida = null;
+      const colocar = (z, b, v) => {
+        if (!z || !z.classList.contains('zona-recta')) return;
+        if (+z.dataset.v === v) {
+          z.classList.remove('zona-recta'); z.classList.add('puesto'); z.textContent = v; b.remove(); elegida = null; a.sfx.pop(); hechos++;
+          rana.style.left = pos(+z.dataset.k); rana.classList.remove('salta'); void rana.offsetWidth; rana.classList.add('salta'); a.habla(String(v));
+          if (hechos === ocultos.length) { fallado ? a.sfx.bien() : a.acierto(); a.confeti && a.confeti(); a.espera(() => { i++; paso(); }, 1300); }
+        } else { fallado ? a.sfx.mal() : a.fallo(b); fallado = true; a.pista('Mira el número de antes y el de después del hueco.'); }
+      };
       const banco = a.h('div', { class: 'banco' }, a.mezclar(ocultos).map(v => {
-        const b = a.h('div', { class: 'ficha-palabra', style: { fontSize: '30px' } }, v);
-        a.arrastrable(b, { destinos: '.zona-recta', alSoltar: (z) => {
-          if (!z) return;
-          if (+z.dataset.v === v) { z.classList.remove('zona-recta'); z.style.background = '#c9f5c2'; z.style.borderStyle = 'solid'; z.textContent = v; z.style.display = 'grid'; z.style.placeItems = 'center'; z.style.fontWeight = 900; z.style.fontSize = '22px'; b.remove(); a.sfx.clic(); hechos++;
-            if (hechos === ocultos.length) { fallado ? a.sfx.bien() : a.acierto(); a.espera(() => { i++; paso(); }, 1100); } }
-          else { fallado ? a.sfx.mal() : a.fallo(b); fallado = true; }
-        } });
+        const b = a.h('div', { class: 'ficha-palabra r-ficha' }, v);
+        a.arrastrable(b, { destinos: '.zona-recta', alSoltar: (z) => colocar(z, b, v), alTocar: () => { document.querySelectorAll('.r-ficha.sel').forEach(x => x.classList.remove('sel')); b.classList.add('sel'); elegida = [b, v]; a.sfx.clic(); } });
         return b;
       }));
-      a.cuerpo.replaceChildren(a.instr('Arrastra cada número a su hueco de la recta'), recta, banco);
+      recta.addEventListener('click', (e) => { const z = e.target.closest('.zona-recta'); if (z && elegida) colocar(z, elegida[0], elegida[1]); });
+      a.pista(paso10 ? 'Los números van de 10 en 10.' : 'Los números van de 1 en 1.');
+      a.cuerpo.replaceChildren(a.instr('Arrastra cada número a su hueco (o tócalo y luego toca el hueco)'), recta, banco);
     };
     paso();
   };
 
-  /* Geoplano */
+  /* Geoplano: toca los clavos y la goma se cierra sola. Si la figura está bien, sale «¡Listo!» */
   M.geoplano = (a) => {
-    const RETOS = [['un triángulo', 3], ['un cuadrado', 4], ['un rectángulo', 4], ['una figura de 5 lados (pentágono)', 5], ['una figura de 6 lados (hexágono)', 6], ['¡lo que tú quieras!', 0]];
-    let r = 0; const N = 7, S = 80;
+    const RETOS = [['un triángulo', 3, 'tri'], ['un cuadrado', 4, 'cua'], ['un rectángulo', 4, 'rec'], ['un triángulo grande', 3, 'tri'], ['una figura de 5 lados', 5, 'n'], ['una figura de 6 lados', 6, 'n']];
+    let r = 0; const N = 5, S = 100;
     const NS = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${S * (N + 1)} ${S * (N + 1)}`); svg.setAttribute('class', 'geo'); svg.style.height = 'min(62vh,90vw)'; svg.style.display = 'block'; svg.style.margin = '0 auto';
-    const forma = document.createElementNS(NS, 'polygon'); forma.setAttribute('fill', 'rgba(233,79,165,.25)'); forma.setAttribute('stroke', '#e94fa5'); forma.setAttribute('stroke-width', '8'); forma.setAttribute('stroke-linejoin', 'round');
-    svg.append(forma); let pts = [];
+    const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${S * (N + 1)} ${S * (N + 1)}`); svg.setAttribute('class', 'geo2');
+    const tabla = document.createElementNS(NS, 'rect'); tabla.setAttribute('x', 20); tabla.setAttribute('y', 20); tabla.setAttribute('width', S * (N + 1) - 40); tabla.setAttribute('height', S * (N + 1) - 40); tabla.setAttribute('rx', 30); tabla.setAttribute('class', 'geo-tabla'); svg.append(tabla);
+    const forma = document.createElementNS(NS, 'polygon'); forma.setAttribute('class', 'geo-goma'); svg.append(forma);
+    const linea = document.createElementNS(NS, 'polyline'); linea.setAttribute('class', 'geo-goma abierta'); svg.append(linea);
+    let pts = [], bloq = false;
+    const clavos = [];
     for (let y = 1; y <= N; y++) for (let x = 1; x <= N; x++) {
-      const c = document.createElementNS(NS, 'circle'); c.setAttribute('cx', x * S); c.setAttribute('cy', y * S); c.setAttribute('r', 13); c.setAttribute('fill', '#6b5bd6');
-      c.addEventListener('pointerdown', (e) => { e.preventDefault(); pts.push([x * S, y * S]); a.sfx.clic(); dibujar(); }); svg.append(c);
+      const g = document.createElementNS(NS, 'circle'); g.setAttribute('cx', x * S); g.setAttribute('cy', y * S); g.setAttribute('r', 34); g.setAttribute('fill', 'transparent');
+      const c = document.createElementNS(NS, 'circle'); c.setAttribute('cx', x * S); c.setAttribute('cy', y * S); c.setAttribute('r', 15); c.setAttribute('class', 'geo-clavo');
+      g.addEventListener('pointerdown', (e) => { e.preventDefault(); tocar(x, y, c); }); svg.append(c, g); clavos.push(c);
     }
-    const lados = h('div', { class: 'instr' });
-    function h(t, at, ...k) { return a.h(t, at, ...k); }
-    const dibujar = () => { forma.setAttribute('points', pts.map(p => p.join(',')).join(' ')); lados.textContent = 'Lados: ' + (pts.length >= 3 ? pts.length : 0); };
-    const reto = a.h('div', { class: 'instr' });
-    const ponerReto = () => { if (r >= RETOS.length) return a.fin(); a.progreso(r, RETOS.length); reto.replaceChildren(a.btnHablar('Haz ' + RETOS[r][0]), a.h('span', {}, '🔷 Haz ' + RETOS[r][0])); pts = []; dibujar(); };
-    const listo = () => {
-      const necesita = RETOS[r][1];
-      if (pts.length >= 3 && (!necesita || pts.length === necesita)) { a.acierto(svg); r++; a.espera(ponerReto, 900); }
-      else { a.fallo(svg); a.habla(necesita ? 'Necesitas ' + necesita + ' clavos' : 'Toca al menos 3 clavos'); }
+    const dist2 = (p, q) => (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2;
+    const area = (P) => Math.abs(P.reduce((s, p, k) => { const q = P[(k + 1) % P.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0)) / 2;
+    const rectos = (P) => P.every((p, k) => { const o = P[(k + 3) % 4], q = P[(k + 1) % 4]; return (o[0] - p[0]) * (q[0] - p[0]) + (o[1] - p[1]) * (q[1] - p[1]) === 0; });
+    const valida = (tipo, P) => {
+      if (area(P) === 0) return false;
+      if (tipo === 'cua') return rectos(P) && dist2(P[0], P[1]) === dist2(P[1], P[2]);
+      if (tipo === 'rec') return rectos(P);
+      return true;
     };
-    a.cuerpo.replaceChildren(reto, svg, lados, a.h('div', { class: 'centro' }, a.h('button', { class: 'btn', style: { '--c': '#f39c33' }, onclick: () => { pts.pop(); dibujar(); } }, '↩️ Deshacer'),
-      a.h('button', { class: 'btn', style: { '--c': '#ef4a5c' }, onclick: () => { pts = []; dibujar(); } }, '🧽 Borrar'), a.h('button', { class: 'btn', style: { '--c': '#2fb45a' }, onclick: listo }, '✅ ¡Listo!')));
+    const dibujar = () => {
+      const t = pts.map(p => p.map(v => v * S).join(',')).join(' ');
+      linea.setAttribute('points', t); forma.setAttribute('points', '');
+      clavos.forEach(c => c.classList.toggle('usado', pts.some(p => p[0] * S === +c.getAttribute('cx') && p[1] * S === +c.getAttribute('cy'))));
+    };
+    const reto = a.h('div', { class: 'instr' }); const aviso = a.h('div', { class: 'geo-aviso' });
+    const ponerReto = () => { if (r >= RETOS.length) return a.fin(); a.progreso(r, RETOS.length); reto.replaceChildren(a.btnHablar('Haz ' + RETOS[r][0]), a.h('span', {}, 'Haz ' + RETOS[r][0] + ' tocando los clavos')); pts = []; bloq = false; aviso.textContent = ''; aviso.className = 'geo-aviso'; dibujar(); a.pista(RETOS[r][2] === 'cua' ? 'Un cuadrado tiene 4 lados iguales.' : RETOS[r][2] === 'rec' ? 'Un rectángulo tiene 4 esquinas rectas.' : 'Cuenta los lados: ' + RETOS[r][1] + '.'); };
+    const tocar = (x, y) => {
+      if (bloq) return;
+      if (pts.some(p => p[0] === x && p[1] === y)) return;
+      pts.push([x, y]); a.sfx.pop(); dibujar();
+      const [, n, tipo] = RETOS[r];
+      if (pts.length === n) {
+        bloq = true;
+        forma.setAttribute('points', pts.map(p => p.map(v => v * S).join(',')).join(' ')); linea.setAttribute('points', '');
+        if (valida(tipo, pts)) { a.acierto(svg); aviso.textContent = '¡Listo! 🎉'; aviso.className = 'geo-aviso bien'; a.habla('¡Listo! Has hecho ' + RETOS[r][0]); r++; a.espera(ponerReto, 1600); }
+        else { a.fallo(svg); aviso.textContent = '¡Casi! Prueba otra vez'; aviso.className = 'geo-aviso mal'; a.habla(tipo === 'cua' ? 'Los cuatro lados tienen que ser iguales' : 'Las esquinas tienen que ser rectas'); a.espera(() => { pts = []; bloq = false; aviso.textContent = ''; dibujar(); }, 1600); }
+      }
+    };
+    a.cuerpo.replaceChildren(reto, a.h('div', { class: 'geo-marco' }, svg), aviso, a.h('div', { class: 'centro' }, a.h('button', { class: 'btn', style: { '--c': '#ef4a5c' }, onclick: () => { if (!bloq) { pts = []; dibujar(); } } }, '🧽 Empezar de nuevo')));
     a.cuerpo.style.overflowY = 'auto';
     ponerReto();
   };

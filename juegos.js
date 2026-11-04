@@ -34,10 +34,12 @@
             a.espera(() => { i++; paso(); }, t);
           }
           else { if (!fallado) a.fallo(b); else a.sfx.mal(); fallado = true; b.classList.add('mal'); b.dataset.bloq = 1; }
-        } }, o);
+        } }, !emo && App.ilusPalabra && App.ilusPalabra(o) ? [a.h('img', { class: 'f-dibujo', src: App.ilusPalabra(o), alt: '' }), a.h('span', {}, o)] : o);
+        b.dataset.v = o;
         caja.append(b);
       });
-      a.cuerpo.replaceChildren(a.h('div', { class: 'pregunta' }, p.pj ? a.h('span', { class: 'img' }, a.pj(p.pj, 'pj pj-preg')) : p.img ? a.h('span', { class: 'img' }, p.img) : null, a.h('div', { class: 'instr', style: { margin: 0 } }, a.btnHablar(p.q), a.h('span', {}, p.q))), caja);
+      if (a.cuerpo.classList.contains('plato') && !a.cuerpo.querySelector('.plato-focos')) a.cuerpo.prepend(a.h('div', { class: 'plato-focos' }, a.rec('focos') ? a.h('img', { src: a.rec('focos'), alt: '' }) : null));
+      a.cuerpo.replaceChildren(...[...a.cuerpo.querySelectorAll(':scope > .plato-focos')], a.h('div', { class: 'pregunta' }, p.pj ? a.h('span', { class: 'img' }, a.pj(p.pj, 'pj pj-preg')) : p.img ? a.h('span', { class: 'img' }, p.img) : null, a.h('div', { class: 'instr', style: { margin: 0 } }, a.btnHablar(p.q), a.h('span', {}, p.q))), caja);
     };
     paso();
   };
@@ -73,26 +75,35 @@
   };
 
   /* Ordenar por grupos */
+  // Ficha de palabra con su dibujo (si lo hay)
+  const fichaDibujo = (a, t, cls = 'ficha-palabra') => {
+    const src = App.ilusPalabra && App.ilusPalabra(String(t).replace(/^(el|la|los|las|un|una)\s+/i, ''));
+    return a.h('button', { class: cls + (src ? ' con-dibujo' : '') }, src ? a.h('img', { class: 'f-dibujo', src, alt: '', draggable: false }) : null, a.h('span', {}, t));
+  };
+  App.fichaDibujo = fichaDibujo;
   M.grupos = (a, d) => {
     const nombres = Object.keys(d.grupos);
     let items = []; nombres.forEach(n => a.mezclar(d.grupos[n]).slice(0, d.max || 5).forEach(t => items.push({ t, g: n })));
     items = a.mezclar(items); const total = items.length; let hechos = 0;
-    const cols = a.h('div', { style: { display: 'grid', gridTemplateColumns: `repeat(${nombres.length},1fr)`, gap: '14px', marginBottom: '14px' } },
-      nombres.map(n => a.h('div', { class: 'zona', 'data-g': n, style: { minHeight: '180px', flexDirection: 'column', alignItems: 'stretch' } },
-        a.h('div', { style: { fontWeight: 900, fontSize: '24px', textAlign: 'center', color: 'var(--morado)' } }, n))));
-    const banco = a.h('div', { class: 'banco' });
+    const colores = ['#ff6b8b', '#3d8bfd', '#2fb45a', '#f39c33', '#9b5cff'];
+    const cesta = a.rec('cesta');
+    const cols = a.h('div', { class: 'cestas', style: { gridTemplateColumns: `repeat(${nombres.length},1fr)` } },
+      nombres.map((n, k) => a.h('div', { class: 'zona cesta-zona', 'data-g': n, style: { '--c': colores[k % colores.length] } },
+        a.h('div', { class: 'cesta-cartel' }, n), a.h('div', { class: 'cesta-dentro' }), cesta ? a.h('img', { class: 'cesta-img', src: cesta, alt: '' }) : null)));
+    const banco = a.h('div', { class: 'banco banco-grande' });
     let sel = null;
     const meter = (b, it, zona) => {
       if (zona.dataset.g === it.g) {
         a.acierto(); b.remove(); hechos++;
-        zona.append(a.h('span', { class: 'ficha-palabra hecha', style: { fontSize: '20px', minHeight: '48px' } }, it.t)); a.progreso(hechos, total);
+        const f = fichaDibujo(a, it.t, 'ficha-palabra hecha mini'); zona.querySelector('.cesta-dentro').append(f); zona.classList.remove('tragar'); void zona.offsetWidth; zona.classList.add('tragar');
+        a.progreso(hechos, total); a.habla(it.t);
         if (hechos === total) a.espera(() => a.fin(), 900);
-      } else a.fallo(b);
+      } else { a.fallo(b); a.pista('«' + it.t + '» no va en ' + zona.dataset.g + '. Piensa en qué grupo encaja.'); }
       sel && sel.classList.remove('sel'); sel = null;
     };
     items.forEach(it => {
-      const b = a.h('button', { class: 'ficha-palabra' }, it.t);
-      a.arrastrable(b, { destinos: '.zona', alSoltar: (z) => z && meter(b, it, z), alTocar: () => { sel && sel.classList.remove('sel'); sel = b; b.classList.add('sel'); b._it = it; a.sfx.clic(); } });
+      const b = fichaDibujo(a, it.t);
+      a.arrastrable(b, { destinos: '.zona', alSoltar: (z) => z && meter(b, it, z), alTocar: () => { sel && sel.classList.remove('sel'); sel = b; b.classList.add('sel'); b._it = it; a.sfx.clic(); a.habla(it.t); } });
       banco.append(b);
     });
     cols.querySelectorAll('.zona').forEach(z => z.addEventListener('click', () => { if (sel) meter(sel, sel._it, z); }));
@@ -107,7 +118,7 @@
     const rel = d.relojes && App.relojSVG;
     const mk = (it, lado) => {
       const contenido = (lado === 0 && rel) ? (() => { const [hh, mm] = it.t.split(':').map(Number); const s = a.h('div', { html: App.relojSVG(hh, mm, 110) }); return s; })() : it.t;
-      const b = a.h('button', { class: 'ficha-palabra', style: { fontSize: String(it.t).length > 18 ? '21px' : '' } }, contenido);
+      const b = (lado === 0 && rel) ? a.h('button', { class: 'ficha-palabra' }, contenido) : fichaDibujo(a, it.t); if (String(it.t).length > 18) b.style.fontSize = '21px';
       b._it = it; b._lado = lado;
       b.onclick = () => {
         if (b.dataset.bloq) return;
@@ -138,16 +149,18 @@
     const nombre = a.h('div', { class: 'memo-nombre' });
     cartas.forEach(c => {
       const b = a.h('button', { class: 'carta memo' }, a.h('div', { class: 'memo-dorso' }, '⭐'), a.h('div', { class: 'memo-cara' }, cara(c), a.h('b', {}, c.n)));
+      // giro sin 3D (Safari): se encoge, cambia de cara y vuelve a crecer
+      const voltear = (x, on) => { x.dataset.abierta = on ? 1 : ''; x.classList.remove('gira'); void x.offsetWidth; x.classList.add('gira'); setTimeout(() => x.classList.toggle('vuelta', on), 160); };
       b.onclick = () => {
-        if (bloqueo || b.classList.contains('vuelta')) return;
-        b.classList.add('vuelta'); a.sfx.clic(); abiertas.push([b, c]);
+        if (bloqueo || b.dataset.abierta) return;
+        voltear(b, true); a.sfx.clic(); abiertas.push([b, c]);
         if (abiertas.length === 2) {
           const [[b1, c1], [b2, c2]] = abiertas; abiertas = []; intentos++;
           if (c1.k === c2.k) {
-            a.acierto(); [b1, b2].forEach(x => x.classList.add('hecha')); hechos++; a.progreso(hechos, pares.length);
+            setTimeout(() => { a.acierto(); [b1, b2].forEach(x => x.classList.add('hecha')); }, 350); hechos++; a.progreso(hechos, pares.length);
             nombre.textContent = c1.n; nombre.classList.remove('pop'); void nombre.offsetWidth; nombre.classList.add('pop'); a.habla(c1.n);
-            if (hechos === pares.length) a.espera(() => a.fin('Lo has hecho en ' + intentos + ' intentos'), 1200);
-          } else { bloqueo = true; a.fallo(); setTimeout(() => { [b1, b2].forEach(x => x.classList.remove('vuelta')); bloqueo = false; }, 1100); }
+            if (hechos === pares.length) a.espera(() => a.fin('Lo has hecho en ' + intentos + ' intentos'), 1400);
+          } else { bloqueo = true; setTimeout(() => a.fallo(), 350); setTimeout(() => { [b1, b2].forEach(x => voltear(x, false)); bloqueo = false; }, 1300); }
         }
       };
       rej.append(b);
@@ -235,28 +248,57 @@
 
   /* Explotaglobos */
   M.globos = (a, d) => {
-    const META = 10; let buenos = 0, vidas = 3, fin = false;
-    const cielo = a.h('div', { class: 'cielo' });
-    const marc = a.h('div', { class: 'instr', style: { margin: '0 0 8px' } });
-    const act = () => { marc.textContent = '🎈 ' + buenos + ' / ' + META + '    ' + '❤️'.repeat(vidas); a.progreso(buenos, META); };
-    const colores = ['#ef4a5c', '#3d8bfd', '#f39c33', '#2fb45a', '#9b5cff', '#e94fa5'];
+    // Varias rondas de campos semánticos: al terminar una, empieza otra. Los globos explotan en confeti.
+    const rondas = d.rondas ? a.mezclar(d.rondas) : [{ tema: '', pregunta: d.pregunta, si: d.si, no: d.no }];
+    const META = d.rondas ? 6 : 10; let ri = 0, buenos = 0, vidas = 5, fin = false, total = 0;
+    const cielo = a.h('div', { class: 'cielo cielo2' }, a.h('i', { class: 'nube n1' }), a.h('i', { class: 'nube n2' }), a.h('i', { class: 'nube n3' }));
+    const marc = a.h('div', { class: 'globo-marcador' });
+    const cartel = a.h('div', { class: 'globo-cartel' });
+    const colores = ['#ef4a5c', '#3d8bfd', '#f39c33', '#2fb45a', '#9b5cff', '#e94fa5', '#00b5c9'];
+    const act = () => { marc.replaceChildren(a.h('b', {}, '🎈 ' + buenos + ' / ' + META), a.h('span', {}, '❤️'.repeat(vidas))); a.progreso(ri * META + buenos, rondas.length * META); };
+    const R = () => rondas[ri];
+    const malos = () => { const r = R(); if (r.no) return r.no; return rondas.filter(x => x !== r).flatMap(x => x.si); };
+    const anunciar = () => {
+      const r = R(); cartel.replaceChildren(a.h('small', {}, d.rondas ? 'Campo sem' + 'ántico' : ''), a.h('b', {}, r.tema ? r.tema : r.pregunta));
+      cartel.classList.remove('entra'); void cartel.offsetWidth; cartel.classList.add('entra');
+      a.habla(r.pregunta); a.pista('Piensa: ¿es ' + (r.tema ? 'de ' + r.tema.toLowerCase() : 'correcto') + '?');
+    };
+    const estallar = (g, bien) => {
+      const r = g.getBoundingClientRect(), c = cielo.getBoundingClientRect();
+      const x = r.left - c.left + r.width / 2, y = r.top - c.top + r.height / 2.4;
+      for (let k = 0; k < (bien ? 18 : 8); k++) {
+        const p = a.h('i', { class: 'chispa', style: { left: x + 'px', top: y + 'px', background: bien ? colores[k % colores.length] : '#555', '--dx': (Math.cos(k / 18 * 6.28) * (60 + Math.random() * 70)) + 'px', '--dy': (Math.sin(k / 18 * 6.28) * (60 + Math.random() * 70)) + 'px' } });
+        cielo.append(p); setTimeout(() => p.remove(), 700);
+      }
+      if (bien) { const t = a.h('b', { class: 'globo-mas', style: { left: x + 'px', top: y + 'px' } }, '+1'); cielo.append(t); setTimeout(() => t.remove(), 900); }
+    };
     const soltar = () => {
-      if (fin) return;
-      const si = Math.random() < 0.5, t = a.azar(si ? d.si : d.no);
-      const g = a.h('button', { class: 'globo', style: { left: a.ent(2, 82) + '%', top: '105%', background: a.azar(colores) } }, t);
-      const dur = 7000 + Math.random() * 3000, t0 = performance.now();
-      const anim = (now) => { const p = (now - t0) / dur; if (!g.isConnected) return; g.style.top = (105 - p * 125) + '%'; if (p < 1) requestAnimationFrame(anim); else g.remove(); };
+      if (fin || cartel.classList.contains('pausa')) return;
+      const si = Math.random() < 0.55, t = a.azar(si ? R().si : malos());
+      const col = a.azar(colores);
+      const g = a.h('button', { class: 'globo2', style: { left: a.ent(2, 80) + '%', '--c': col } }, a.h('span', { class: 'globo-cuerpo' }, a.h('b', {}, t)), a.h('i', { class: 'globo-hilo' }));
+      const dur = 7500 + Math.random() * 3000, t0 = performance.now(), fase = Math.random() * 6;
+      const anim = (now) => { const p = (now - t0) / dur; if (!g.isConnected || g.dataset.bloq) return; g.style.top = (102 - p * 128) + '%'; g.style.transform = `translateX(${Math.sin(fase + p * 9) * 14}px) rotate(${Math.sin(fase + p * 7) * 6}deg)`; if (p < 1) requestAnimationFrame(anim); else g.remove(); };
       requestAnimationFrame(anim);
       g.onpointerdown = (e) => {
         e.preventDefault(); if (g.dataset.bloq) return; g.dataset.bloq = 1; a.sfx.pop();
-        if (si) { a.acierto(); buenos++; g.textContent = '💥'; } else { a.fallo(); vidas--; g.textContent = '❌'; }
-        setTimeout(() => g.remove(), 300); act();
-        if (buenos >= META || vidas <= 0) { fin = true; a.espera(() => a.fin(vidas <= 0 ? '¡Inténtalo otra vez!' : ''), 600); }
+        const bien = R().si.includes(t);
+        estallar(g, bien); g.classList.add(bien ? 'explota' : 'pincha');
+        if (bien) { a.acierto(); buenos++; total++; } else { a.fallo(); vidas--; a.habla(t + ' no es ' + (R().tema ? 'de ' + R().tema.toLowerCase() : '')); }
+        setTimeout(() => g.remove(), 350); act();
+        if (vidas <= 0) { fin = true; return a.espera(() => a.fin('¡Inténtalo otra vez!'), 700); }
+        if (buenos >= META) {
+          ri++; buenos = 0;
+          if (ri >= rondas.length) { fin = true; return a.espera(() => a.fin(total + ' globos'), 700); }
+          cartel.classList.add('pausa'); cielo.querySelectorAll('.globo2').forEach(x => x.remove());
+          a.confeti(); a.espera(() => { cartel.classList.remove('pausa'); anunciar(); act(); }, 1200);
+        }
       };
       cielo.append(g);
     };
-    a.temporizador(soltar, 1250); soltar(); act();
-    a.cuerpo.replaceChildren(a.instr(d.pregunta), marc, cielo);
+    a.temporizador(soltar, 1100);
+    a.cuerpo.replaceChildren(a.h('div', { class: 'globo-arriba' }, cartel, marc), cielo);
+    anunciar(); act(); soltar();
   };
 
   /* Completar la frase (ortografía) */
