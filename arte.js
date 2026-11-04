@@ -16,6 +16,42 @@
     mandala: (c, w, h) => { const cx = w / 2, cy = h / 2, R = Math.min(w, h) * .45; [1, .8, .55, .3, .12].forEach(f => { c.beginPath(); c.arc(cx, cy, R * f, 0, 7); c.stroke(); }); for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; c.beginPath(); c.moveTo(cx + Math.cos(a) * R * .12, cy + Math.sin(a) * R * .12); c.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); c.stroke(); c.beginPath(); c.arc(cx + Math.cos(a + .26) * R * .67, cy + Math.sin(a + .26) * R * .67, R * .08, 0, 7); c.stroke(); } },
   };
 
+  /* Mandalas: dibujados al momento, con zonas cerradas para pintar con el bote */
+  function mandala(c, w, h, semilla) {
+    let s0 = semilla * 7919 + 13; const rnd = () => { s0 = (s0 * 16807) % 2147483647; return s0 / 2147483647; };
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.46;
+    const n = [6, 8, 10, 12][Math.floor(rnd() * 4)];
+    const anillos = 4 + Math.floor(rnd() * 3);
+    c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.stroke();
+    let r0 = R;
+    for (let k = 0; k < anillos; k++) {
+      const r1 = r0 * (0.62 + rnd() * 0.15), tipo = Math.floor(rnd() * 4), m = n * (1 + (k % 2));
+      c.beginPath(); c.arc(cx, cy, r1, 0, Math.PI * 2); c.stroke();
+      for (let i = 0; i < m; i++) {
+        const a0 = (i / m) * Math.PI * 2 + (k % 2 ? Math.PI / m : 0), am = a0 + Math.PI / m, a1 = a0 + 2 * Math.PI / m;
+        const P = (r, a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+        c.beginPath();
+        if (tipo === 0) { // pétalos
+          const [x0, y0] = P(r1, a0), [x1, y1] = P(r1, a1), [xm, ym] = P(r0 * 0.98, am);
+          c.moveTo(x0, y0); c.quadraticCurveTo(...P(r0 * 0.9, a0 + 0.15 / (k + 1)), xm, ym); c.quadraticCurveTo(...P(r0 * 0.9, a1 - 0.15 / (k + 1)), x1, y1);
+        } else if (tipo === 1) { // picos
+          c.moveTo(...P(r1, a0)); c.lineTo(...P(r0 * 0.97, am)); c.lineTo(...P(r1, a1));
+        } else if (tipo === 2) { // círculos
+          const rr = (r0 - r1) * 0.42; const [x, y] = P((r0 + r1) / 2, am); c.arc(x, y, rr, 0, Math.PI * 2);
+        } else { // radios
+          c.moveTo(...P(r1, a0)); c.lineTo(...P(r0, a0));
+          const [x, y] = P((r0 + r1) / 2, am); c.moveTo(x + (r0 - r1) * 0.18, y); c.arc(x, y, (r0 - r1) * 0.18, 0, Math.PI * 2);
+        }
+        c.stroke();
+      }
+      r0 = r1;
+    }
+    // flor central
+    for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; c.beginPath(); c.ellipse(cx + Math.cos(a) * r0 * 0.5, cy + Math.sin(a) * r0 * 0.5, r0 * 0.45, r0 * 0.2, a, 0, Math.PI * 2); c.stroke(); }
+    c.beginPath(); c.arc(cx, cy, r0 * 0.28, 0, Math.PI * 2); c.stroke();
+  }
+  for (let k = 1; k <= 12; k++) PLANTILLAS['mandala ' + k] = (c, w, h) => mandala(c, w, h, k);
+
   /* Lienzo común: dibuja con el dedo o el Pencil */
   function lienzo(a, opts) {
     const hoja = a.h('div', { class: 'hoja arte-hoja' });
@@ -86,6 +122,7 @@
     function estampar(x, y) {
       const s = estado.pegatina, tam = estado.grosor * 9 * dpr;
       if (s.startsWith('data:')) { const im = new Image(); im.onload = () => { const k = tam / Math.max(im.width, im.height); cp.drawImage(im, x - im.width * k / 2, y - im.height * k / 2, im.width * k, im.height * k); opts.alCambiar && opts.alCambiar(); }; im.src = s; }
+      else if (App.emoji && App.emoji(s)) { const im = new Image(); im.onload = () => { cp.drawImage(im, x - tam / 2, y - tam / 2, tam, tam); opts.alCambiar && opts.alCambiar(); }; im.src = App.emoji(s); }
       else { cp.font = `${tam}px system-ui`; cp.textAlign = 'center'; cp.textBaseline = 'middle'; cp.fillText(s, x, y); }
       a.sfx.pop();
     }
@@ -155,7 +192,8 @@
       a.cuerpo.replaceChildren(a.instr('¿Qué quieres colorear?'),
         ...grupos.flatMap(([t, ls]) => [a.h('div', { class: 'seccion' }, t), a.h('div', { class: 'laminas' }, ls.map(d => tarjeta({ img: d.img, nombre: d.t })))]),
         a.h('div', { class: 'seccion' }, '✏️ Personajes sencillos'), a.h('div', { class: 'laminas' }, Object.keys(lams).map(k => tarjeta({ k, img: lams[k], nombre: (a.D.personajes[k] || [k])[0] }))),
-        a.h('div', { class: 'seccion' }, '🌸 Dibujos fáciles'), a.h('div', { class: 'laminas' }, Object.keys(PLANTILLAS).map(k => tarjeta({ k, plantilla: true, nombre: k.charAt(0).toUpperCase() + k.slice(1) }))));
+        a.h('div', { class: 'seccion' }, '🌀 Mandalas'), a.h('div', { class: 'laminas' }, Object.keys(PLANTILLAS).filter(k => k.startsWith('mandala')).map(k => tarjeta({ k, plantilla: true, nombre: 'Mandala ' + k.split(' ')[1] }))),
+        a.h('div', { class: 'seccion' }, '🌸 Dibujos fáciles'), a.h('div', { class: 'laminas' }, Object.keys(PLANTILLAS).filter(k => !k.startsWith('mandala')).map(k => tarjeta({ k, plantilla: true, nombre: k.charAt(0).toUpperCase() + k.slice(1) }))));
       a.cuerpo.style.overflowY = 'auto';
     };
     const pintar = (l) => {

@@ -15,7 +15,8 @@
         a.h('div', { class: 'ww-plantilla' }, cfg.plantilla),
         a.h('div', { class: 'ww-titulo' }, cfg.titulo),
         a.h('button', { class: 'ww-iniciar', onclick: () => { a.sfx.clic(); empezar(); } }, a.h('span', {}, '▶'), 'INICIAR'),
-        a.h('div', { class: 'ww-instr' }, cfg.instr)));
+        a.h('div', { class: 'ww-instr' }, cfg.instr),
+        cfg.cambiar ? a.h('button', { class: 'ww-cambiar', onclick: () => { a.sfx.clic(); cfg.cambiar(); } }, '🔀 Cambiar plantilla') : null));
     };
     const empezar = () => {
       const t0 = Date.now(); let ok = 0, bonus = 0, parado = false;
@@ -50,7 +51,8 @@
                 a.h('div', {}, a.h('small', {}, 'Hora'), a.h('b', {}, mmss(seg)))),
               r ? a.h('div', { class: 'ww-estrellas' }, '⭐'.repeat(r.est) + '☆'.repeat(3 - r.est), r.pegatina ? a.h('div', { class: 'ww-peg' }, '🎁 ¡Nueva pegatina! ' + r.pegatina) : null) : null,
               revisar ? a.h('button', { class: 'ww-boton', onclick: () => { a.sfx.clic(); revisar(caja, () => a.reiniciar()); } }, 'Mostrar respuestas') : null,
-              a.h('button', { class: 'ww-boton', onclick: () => { a.sfx.clic(); a.reiniciar(); } }, 'Volver a empezar'))));
+              a.h('button', { class: 'ww-boton', onclick: () => { a.sfx.clic(); a.reiniciar(); } }, 'Volver a empezar'),
+              cfg.cambiar ? a.h('button', { class: 'ww-boton', onclick: () => { a.sfx.clic(); cfg.cambiar(); } }, 'Juega con una plantilla diferente') : null)));
         },
       };
       jugar(api);
@@ -68,7 +70,7 @@
   /* ---------- Cuestionario ---------- */
   M['ww-quiz'] = (a, d) => {
     const lista = d.orden ? d.preguntas.slice() : a.mezclar(d.preguntas);
-    marco(a, { tema: d.tema || 'clasico', plantilla: 'Cuestionario', titulo: d.titulo || a.j.titulo, instr: 'Una serie de preguntas de opción múltiple. Pulsa la respuesta correcta para continuar.' }, (w) => {
+    marco(a, { cambiar: d._cambiar, tema: d.tema || 'clasico', plantilla: d.plantilla || 'Cuestionario', titulo: d.titulo || a.j.titulo, instr: 'Una serie de preguntas de opción múltiple. Pulsa la respuesta correcta para continuar.' }, (w) => {
       w.total = lista.length; let i = 0; const hechas = [];
       const colores = ['#2c8de8', '#e5394c', '#f28a1e', '#24a148', '#9b5cff', '#e94fa5'];
       const paso = () => {
@@ -77,7 +79,7 @@
         const ops = p.ops ? p.ops.slice() : a.mezclar([p.r, ...p.mal]);
         const fotos = ops.every(esEmoji);
         const rej = a.h('div', { class: 'ww-opciones' + (fotos ? ' fotos' : '') }, ops.map((o, k) => {
-          const b = a.h('button', { class: 'ww-op', style: { '--c': colores[k % colores.length] } }, fotos ? a.h('span', { class: 'ww-foto' }, o) : o);
+          const b = a.h('button', { class: 'ww-op', 'data-v': o, style: { '--c': colores[k % colores.length] } }, fotos ? a.h('span', { class: 'ww-foto' }, o) : o);
           b.onclick = () => {
             if (rej.dataset.bloq || b.dataset.mal) return;
             if (o === p.r) {
@@ -91,7 +93,7 @@
               if (intentos === 1) w.aviso('Inténtalo de nuevo', 'mal');
               else { // segundo fallo: enseña la buena y sigue
                 rej.dataset.bloq = 1; hechas.push([p.q, p.r, false]);
-                const buena = [...rej.children].find(x => x.textContent.startsWith(p.r) || x.querySelector('.ww-foto')?.textContent === p.r);
+                const buena = [...rej.children].find(x => x.dataset.v === p.r);
                 buena && buena.classList.add('revela'); setTimeout(() => { i++; paso(); }, 1600);
               }
             }
@@ -109,7 +111,7 @@
   /* ---------- Reordenar (Ordenar frases) ---------- */
   M['ww-ordenar'] = (a, d) => {
     const frases = d.frases.slice();
-    marco(a, { tema: d.tema || 'color', plantilla: 'Reordenar', titulo: d.titulo || 'FRASES', instr: 'Arrastra y suelta palabras para reordenar cada oración correctamente.', cuentaAtras: d.cuentaAtras }, (w) => {
+    marco(a, { cambiar: d._cambiar, tema: d.tema || 'color', plantilla: 'Reordenar', titulo: d.titulo || 'FRASES', instr: 'Arrastra y suelta palabras para reordenar cada oración correctamente.', cuentaAtras: d.cuentaAtras }, (w) => {
       w.total = frases.length; let i = 0; const hechas = [];
       const paso = () => {
         if (i >= frases.length) return w.terminar(frases.length, revisarLista(a, hechas));
@@ -154,7 +156,7 @@
 
   /* ---------- Une las parejas (Agrupamientos) ---------- */
   M['ww-parejas'] = (a, d) => {
-    marco(a, { tema: d.tema || 'pizarra', plantilla: 'Une las parejas', titulo: d.titulo || a.j.titulo, instr: 'Arrastra y suelta cada palabra junto a su definición.' }, (w) => {
+    marco(a, { cambiar: d._cambiar, tema: d.tema || 'pizarra', plantilla: 'Une las parejas', titulo: d.titulo || a.j.titulo, instr: 'Arrastra y suelta cada palabra junto a su definición.' }, (w) => {
       const pares = d.pares; w.total = pares.length;
       const izq = a.h('div', { class: 'ww-col-palabras' }), der = a.h('div', { class: 'ww-col-defs' });
       const huecos = pares.map(([clave, def], k) => {
@@ -253,4 +255,194 @@
       requestAnimationFrame(dibujar);
     });
   };
+
+  /* =================== CAMBIAR PLANTILLA (como en Wordwall) =================== */
+  // Cada actividad del cole tiene un contenido y se puede jugar con varias plantillas.
+  const PLANTILLAS = {
+    'ww-quiz': [['quiz', 'Cuestionario', '❓'], ['concurso', 'Concurso de preguntas', '📺'], ['cajas', 'Abrecajas', '🎁'], ['rueda', 'Rueda aleatoria', '🎡']],
+    'ww-ordenar': [['ordenar', 'Reordenar', '🔀'], ['anagrama', 'Anagrama', '🔤'], ['concurso', 'Concurso de preguntas', '📺'], ['cajas', 'Abrecajas', '🎁'], ['cartas', 'Cartas al azar', '🃏'], ['rueda', 'Rueda aleatoria', '🎡'], ['flash', 'Tarjetas flash', '⚡']],
+    'ww-parejas': [['parejas', 'Une las parejas', '🔗'], ['oveja', 'Cada oveja con su pareja', '🐑'], ['quiz', 'Cuestionario', '❓'], ['concurso', 'Concurso de preguntas', '📺'], ['anagrama', 'Anagrama', '🔤'], ['cajas', 'Abrecajas', '🎁']],
+  };
+  const elegida = {};
+  function selector(a, tipo, alElegir) {
+    a.modal('Cambiar plantilla', a.h('div', { class: 'ww-selector' }, PLANTILLAS[tipo].map(([id, nombre, ico]) =>
+      a.h('button', { class: 'ww-plantilla-btn' + (elegida[a.j.id] === id ? ' sel' : ''), onclick: () => { a.cerrarModal(); elegida[a.j.id] = id; a.sfx.clic(); alElegir(); } }, a.h('span', { class: 'ico' }, ico), nombre))));
+  }
+  // Convierte cualquier actividad en preguntas de elegir
+  function comoPreguntas(a, tipo, d) {
+    if (tipo === 'ww-quiz') return d.preguntas.map(p => ({ q: p.q, r: p.r, mal: p.mal, ops: p.ops }));
+    if (tipo === 'ww-parejas') { const cats = d.pares.map(p => p[0]); return d.pares.map(([c, def]) => ({ q: def, r: c, mal: a.mezclar(cats.filter(x => x !== c)).slice(0, 3) })); }
+    // frases: ¿cuál está bien ordenada?
+    return d.frases.map(f => { const w = f.split(/\s+/); let m1 = a.mezclar(w).join(' '), m2 = a.mezclar(w).join(' '); if (m1 === f) m1 = w.slice().reverse().join(' '); if (m2 === f || m2 === m1) m2 = [...w.slice(1), w[0]].join(' '); return { q: '¿Cuál está bien ordenada?', r: f, mal: [m1] }; });
+  }
+  const BASE = { 'ww-quiz': M['ww-quiz'], 'ww-ordenar': M['ww-ordenar'], 'ww-parejas': M['ww-parejas'] };
+  const col = ['#2c8de8', '#e5394c', '#f28a1e', '#24a148', '#9b5cff', '#e94fa5', '#00a8a8', '#ffb648'];
+  function lanzar(tipo) {
+    return (a, d) => {
+      const id = elegida[a.j.id] || PLANTILLAS[tipo][0][0];
+      const nombre = PLANTILLAS[tipo].find(p => p[0] === id)[1];
+      const cambiar = () => selector(a, tipo, () => lanzar(tipo)(a, d));
+      const datos = Object.assign({}, d, { _cambiar: cambiar });
+      if (id === PLANTILLAS[tipo][0][0]) return BASE[tipo](a, datos);
+      const cfg = { tema: id === 'concurso' ? 'concurso' : d.tema || 'clasico', plantilla: nombre, titulo: d.titulo || a.j.titulo, cambiar, instr: '' };
+      const P = comoPreguntas(a, tipo, d);
+      if (id === 'quiz') return BASE['ww-quiz'](a, Object.assign({}, d, { preguntas: P, orden: false, _cambiar: cambiar, plantilla: nombre }));
+      if (id === 'concurso') return concurso(a, cfg, P);
+      if (id === 'cajas') return abrecajas(a, cfg, P, tipo === 'ww-ordenar');
+      if (id === 'rueda' || id === 'cartas') return ruedaCartas(a, cfg, tipo === 'ww-ordenar' ? d.frases : P.map(p => p.q), id);
+      if (id === 'anagrama') return anagrama(a, cfg, tipo === 'ww-ordenar' ? d.frases.map(f => ({ q: 'Ordena las letras de cada palabra', r: f })) : P.map(p => ({ q: p.q, r: p.r })));
+      if (id === 'flash') return flash(a, cfg, d.frases);
+      if (id === 'oveja') return oveja(a, cfg, d.pares);
+    };
+  }
+  Object.keys(BASE).forEach(t => { M[t] = lanzar(t); });
+
+  // ---- Concurso de preguntas (Quiz Show: tiempo por pregunta, ×2 y tiempo extra) ----
+  function concurso(a, cfg, P) {
+    cfg.instr = 'Un cuestionario con límite de tiempo, comodines y bonificación.';
+    marco(a, cfg, (w) => {
+      const lista = a.mezclar(P); w.total = lista.length; let i = 0, doble = false, extra = true, x2 = true; const hechas = [];
+      const paso = () => {
+        if (i >= lista.length) return w.terminar(lista.length, revisarLista(a, hechas));
+        const p = lista[i]; let t = 20, fin = false;
+        const barra = a.h('div', { class: 'qs-barra' }, a.h('i')); const tiempo = a.h('div', { class: 'qs-tiempo' }, '20');
+        const ops = a.h('div', { class: 'qs-ops' }, a.mezclar([p.r, ...p.mal].slice(0, 4)).map((o, k) => {
+          const b = a.h('button', { class: 'qs-op', 'data-v': o }, a.h('b', {}, 'ABCD'[k]), a.h('span', {}, o));
+          b.onclick = () => { if (fin) return; fin = true; clearInterval(tk); const bien = o === p.r; b.classList.add(bien ? 'bien' : 'mal');
+            if (bien) { w.sumar(); if (doble) w.bonus(1, w.zona); a.acierto(); } else { a.fallo(); ops.querySelectorAll('.qs-op').forEach(x => { if (x.dataset.v === p.r) x.classList.add('bien'); }); }
+            hechas.push([p.q, p.r, bien]); doble = false; setTimeout(() => { i++; paso(); }, 1300); };
+          return b;
+        }));
+        const tk = setInterval(() => { t -= 0.1; barra.firstChild.style.width = (t / 20 * 100) + '%'; tiempo.textContent = Math.ceil(t); if (t <= 0 && !fin) { fin = true; clearInterval(tk); a.fallo(); hechas.push([p.q, p.r, false]); setTimeout(() => { i++; paso(); }, 900); } }, 100);
+        const comodines = a.h('div', { class: 'qs-comodines' },
+          a.h('button', { class: 'qs-com', disabled: !x2, onclick: (e) => { x2 = false; doble = true; e.currentTarget.disabled = true; a.sfx.moneda(); } }, 'Puntuación ×2'),
+          tiempo,
+          a.h('button', { class: 'qs-com', disabled: !extra, onclick: (e) => { extra = false; t = Math.min(30, t + 10); e.currentTarget.disabled = true; a.sfx.moneda(); } }, 'Tiempo extra'));
+        w.zona.replaceChildren(a.h('div', { class: 'qs-escenario' }, barra, a.h('div', { class: 'qs-pregunta' }, a.btnHablar(p.q), a.h('span', {}, p.q)), ops, comodines));
+        w.pie.replaceChildren(a.h('span', { class: 'ww-pagina' }, (i + 1) + ' de ' + lista.length));
+        a.progreso(i, lista.length);
+      };
+      paso();
+    });
+  }
+  // ---- Abrecajas ----
+  function abrecajas(a, cfg, P, leer) {
+    cfg.instr = 'Toca las cajas de una en una para abrirlas y revelar lo que hay dentro.';
+    marco(a, cfg, (w) => {
+      const lista = a.mezclar(P); w.total = lista.length; let hechas = 0; const filas = [];
+      const rej = a.h('div', { class: 'ac-rejilla' }, lista.map((p, k) => {
+        const b = a.h('button', { class: 'ac-caja', style: { '--c': col[k % col.length] } }, a.h('span', {}, k + 1));
+        b.onclick = () => {
+          if (b.classList.contains('abierta')) return; a.sfx.pop(); b.classList.add('abierta');
+          const ops = a.h('div', { class: 'ww-opciones' }, a.mezclar([p.r, ...p.mal].slice(0, 4)).map((o, j) => {
+            const x = a.h('button', { class: 'ww-op', style: { '--c': col[j] } }, o);
+            x.onclick = () => { const bien = o === p.r; if (bien) { w.sumar(); a.acierto(); } else a.fallo(); filas.push([p.q, p.r, bien]); hechas++;
+              x.classList.add(bien ? 'acierto' : 'error'); setTimeout(() => { vista.remove(); b.classList.add(bien ? 'bien' : 'mal'); if (hechas === lista.length) w.terminar(lista.length, revisarLista(a, filas)); }, 900); };
+            return x;
+          }));
+          const vista = a.h('div', { class: 'ac-vista' }, a.h('div', { class: 'ac-tapa', style: { '--c': col[k % col.length] } }, a.h('div', { class: 'ww-pregunta' }, a.btnHablar(p.q), a.h('span', {}, p.q))), ops);
+          w.zona.append(vista); if (leer) a.habla(p.q);
+        };
+        return b;
+      }));
+      w.zona.replaceChildren(a.h('div', { class: 'ww-mensaje' }, 'Toca una para abrirla'), rej);
+    });
+  }
+  // ---- Rueda aleatoria / Cartas al azar (para leer en voz alta) ----
+  function ruedaCartas(a, cfg, textos, modo) {
+    cfg.instr = modo === 'rueda' ? 'Gira la rueda para ver qué elemento aparece a continuación.' : 'Reparte las cartas una a una y léelas en voz alta.';
+    marco(a, cfg, (w) => {
+      let quedan = textos.slice(); w.total = textos.length;
+      const leido = a.h('div', { class: 'rc-leido' });
+      const ok = () => { w.sumar(); a.acierto(); };
+      if (modo === 'rueda') {
+        const R = 200; let giro = 0;
+        const dibujar = () => { const n = quedan.length; let s = `<svg viewBox="-210 -210 420 420" class="rc-rueda"><g id="g" style="transition:transform 3.5s cubic-bezier(.2,.8,.2,1);transform:rotate(${giro}deg)">`;
+          quedan.forEach((t, k) => { const a0 = k / n * 2 * Math.PI - Math.PI / 2, a1 = (k + 1) / n * 2 * Math.PI - Math.PI / 2, am = (a0 + a1) / 2;
+            s += `<path d="M0,0 L${R * Math.cos(a0)},${R * Math.sin(a0)} A${R},${R} 0 ${n === 1 ? 1 : 0} 1 ${R * Math.cos(a1)},${R * Math.sin(a1)} Z" fill="${col[k % col.length]}" stroke="#fff" stroke-width="2"/>`;
+            s += `<text transform="rotate(${am * 180 / Math.PI}) translate(115,0)" font-size="${n > 12 ? 9 : 12}" fill="#fff" font-weight="800" text-anchor="middle" dominant-baseline="middle">${String(t).slice(0, 22).replace(/</g, '')}</text>`; });
+          return s + `</g><circle r="30" fill="#fff"/><path d="M-230,-14 L-196,0 L-230,14 Z" fill="#ccc"/></svg>`; };
+        const caja = a.h('div', { html: dibujar() });
+        const girar = a.h('button', { class: 'ww-enviar', onclick: () => {
+          if (!quedan.length) return w.terminar(textos.length);
+          girar.disabled = true; const n = quedan.length, k = a.ent(0, n - 1); giro += 1440 + (180 - (k + .5) * 360 / n) - (giro % 360);
+          caja.querySelector('#g').style.transform = `rotate(${giro}deg)`; a.sfx.clic();
+          setTimeout(() => { const t = quedan[k]; leido.replaceChildren(a.h('div', { class: 'rc-texto' }, t), a.h('div', { class: 'centro' }, a.h('button', { class: 'ww-enviar', onclick: () => { ok(); quedan.splice(k, 1); leido.replaceChildren(); caja.innerHTML = dibujar(); girar.disabled = false; if (!quedan.length) w.terminar(textos.length); } }, '✔ ¡Lo he leído!'), a.h('button', { class: 'ww-enviar', onclick: () => a.habla(t) }, '🔊 Escuchar'))); }, 3600);
+        } }, 'Girar');
+        w.zona.replaceChildren(caja, leido); w.pie.replaceChildren(girar);
+      } else {
+        quedan = a.mezclar(quedan);
+        const mazo = a.h('div', { class: 'rc-mazo' }), mesa = a.h('div', { class: 'rc-mesa' });
+        const repartir = () => { if (!quedan.length) return w.terminar(textos.length); const t = quedan.pop(); mesa.replaceChildren(a.h('div', { class: 'rc-carta' }, t)); a.sfx.pop(); ok(); };
+        w.zona.replaceChildren(a.h('div', { class: 'rc-tapete' }, mazo, mesa));
+        w.pie.replaceChildren(a.h('button', { class: 'ww-enviar', onclick: () => { quedan = a.mezclar(quedan); a.sfx.clic(); } }, 'Mezclar'), a.h('button', { class: 'ww-enviar', onclick: () => { const t = mesa.textContent; if (t) a.habla(t); } }, '🔊'), a.h('button', { class: 'ww-enviar', onclick: repartir }, 'Repartir'));
+      }
+    });
+  }
+  // ---- Anagrama: ordenar las letras ----
+  function anagrama(a, cfg, P) {
+    cfg.instr = 'Arrastra o toca las letras hasta su lugar correcto para descifrar la respuesta.';
+    marco(a, cfg, (w) => {
+      const lista = a.mezclar(P); w.total = lista.length; let i = 0; const filas = [];
+      const paso = () => {
+        if (i >= lista.length) return w.terminar(lista.length, revisarLista(a, filas));
+        const p = lista[i]; const palabras = p.r.split(/\s+/); let fallos = 0;
+        const grupos = palabras.map(pw => {
+          const letras = [...pw]; let pos = 0;
+          const huecos = a.h('div', { class: 'an-huecos' }, letras.map(() => a.h('span', {})));
+          const fichas = a.h('div', { class: 'an-fichas' }, a.mezclar(letras.map((l, k) => ({ l, k }))).map(({ l }) => {
+            const b = a.h('button', { class: 'an-letra' }, l);
+            b.onclick = () => { if (b.dataset.bloq) return;
+              if (l === letras[pos]) { huecos.children[pos].textContent = l; huecos.children[pos].classList.add('bien'); pos++; b.dataset.bloq = 1; b.style.visibility = 'hidden'; a.sfx.clic(); if (pos === letras.length) g.listo = true; comprobar(); }
+              else { fallos++; a.fallo(b); } };
+            return b;
+          }));
+          const g = { el: a.h('div', { class: 'an-palabra' }, fichas, huecos), listo: false }; return g;
+        });
+        const comprobar = () => { if (grupos.every(g => g.listo)) { const bien = fallos < 3; if (bien) { w.sumar(); a.acierto(); } else a.sfx.bien(); filas.push([p.q, p.r, bien]); a.habla(p.r); setTimeout(() => { i++; paso(); }, 1400); } };
+        w.zona.replaceChildren(a.h('div', { class: 'ww-pregunta' }, a.btnHablar(p.q), a.h('span', {}, p.q)), a.h('div', { class: 'an-frase' }, grupos.map(g => g.el)));
+        w.pie.replaceChildren(a.h('span', { class: 'ww-pagina' }, (i + 1) + ' de ' + lista.length));
+      };
+      paso();
+    });
+  }
+  // ---- Tarjetas flash: ¿está bien ordenada? ----
+  function flash(a, cfg, frases) {
+    cfg.instr = 'Ponte a prueba: ¿la frase está bien ordenada? Pulsa ✔ o ✘.';
+    marco(a, cfg, (w) => {
+      const lista = a.mezclar(frases).map(f => { const bien = Math.random() < .5; const w2 = f.split(/\s+/); let m = a.mezclar(w2).join(' '); if (m === f) m = w2.slice().reverse().join(' '); return { f, t: bien ? f : m, bien }; });
+      w.total = lista.length; let i = 0; const filas = [];
+      const paso = () => {
+        if (i >= lista.length) return w.terminar(lista.length, revisarLista(a, filas));
+        const c = lista[i];
+        const resp = (dice) => { const ok = dice === c.bien; if (ok) { w.sumar(); a.acierto(); } else a.fallo(); filas.push([c.t, c.bien ? 'bien ordenada' : 'era: ' + c.f, ok]); tarjeta.classList.add(ok ? 'bien' : 'mal'); setTimeout(() => { i++; paso(); }, 1100); };
+        const tarjeta = a.h('div', { class: 'fl-tarjeta' }, c.t);
+        w.zona.replaceChildren(a.h('div', { class: 'fl-fila' }, tarjeta, a.h('div', { class: 'fl-botones' }, a.h('button', { class: 'fl-si', onclick: () => resp(true) }, '✔'), a.h('button', { class: 'fl-no', onclick: () => resp(false) }, '✘'))));
+        w.pie.replaceChildren(a.h('span', { class: 'ww-pagina' }, (i + 1) + ' de ' + lista.length));
+      };
+      paso();
+    });
+  }
+  // ---- Cada oveja con su pareja ----
+  function oveja(a, cfg, pares) {
+    cfg.instr = 'Toca la ficha que coincida con lo que aparece arriba.';
+    marco(a, cfg, (w) => {
+      const lista = a.mezclar(pares); w.total = lista.length; let i = 0, vidas = 3; const filas = [];
+      const fichas = a.h('div', { class: 'ov-fichas' }, a.mezclar(pares).map(([c], k) => a.h('button', { class: 'ov-ficha', 'data-c': c, style: { '--c': col[k % col.length] } }, c)));
+      const arriba = a.h('div', { class: 'ov-arriba' });
+      const corazones = a.h('span', { class: 'ov-vidas' });
+      const paso = () => {
+        corazones.textContent = '❤️'.repeat(vidas);
+        if (i >= lista.length || vidas <= 0) return w.terminar(lista.length, revisarLista(a, filas));
+        arriba.textContent = lista[i][1];
+      };
+      fichas.addEventListener('click', (e) => {
+        const b = e.target.closest('.ov-ficha'); if (!b || b.disabled) return;
+        const bien = b.dataset.c === lista[i][0];
+        if (bien) { w.sumar(); a.acierto(); b.disabled = true; b.classList.add('fuera'); filas.push([lista[i][1], lista[i][0], true]); i++; setTimeout(paso, 500); }
+        else { a.fallo(b); vidas--; filas.push([lista[i][1], lista[i][0], false]); paso(); }
+      });
+      w.zona.replaceChildren(a.h('div', { class: 'ww-mensaje' }, 'Toca la ficha que coincida'), corazones, arriba, fichas); paso();
+    });
+  }
 })();

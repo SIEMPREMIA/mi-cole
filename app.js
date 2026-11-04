@@ -189,14 +189,19 @@ const App = (() => {
   let VOZ = null;
   function cargarVoz() {
     const vs = speechSynthesis.getVoices();
-    VOZ = vs.find(v => /es[-_]ES/i.test(v.lang) && /m[oó]nica|paulina|marisol|google/i.test(v.name)) || vs.find(v => /es[-_]ES/i.test(v.lang)) || vs.find(v => /^es/i.test(v.lang)) || null;
+    VOZ = vs.find(v => /es[-_]ES/i.test(v.lang) && /(m[oó]nica|marisol|paulina).*(mejorad|premium|enhanced)/i.test(v.name)) || vs.find(v => /es[-_]ES/i.test(v.lang) && /m[oó]nica|paulina|marisol|google/i.test(v.name)) || vs.find(v => /es[-_]ES/i.test(v.lang)) || vs.find(v => /^es/i.test(v.lang)) || null;
   }
   if ('speechSynthesis' in window) { cargarVoz(); speechSynthesis.onvoiceschanged = cargarVoz; }
   function habla(texto, vel = 0.9) {
     if (!('speechSynthesis' in window)) return;
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(String(texto).replace(/[_]{2,}/g, ' hueco '));
-    u.lang = 'es-ES'; u.rate = vel; if (VOZ) u.voice = VOZ; speechSynthesis.speak(u);
+    u.lang = 'es-ES'; u.rate = Math.min(1.05, vel + 0.05); u.pitch = 1.6; if (VOZ) u.voice = VOZ; speechSynthesis.speak(u); // voz aguda, de niño
+  }
+  // Devuelve una frase preparada (para el karaoke de lectura)
+  function hablaUtt(texto, vel = 0.9) {
+    if (!('speechSynthesis' in window)) return null;
+    const u = new SpeechSynthesisUtterance(texto); u.lang = 'es-ES'; u.rate = Math.min(1.05, vel + 0.05); u.pitch = 1.6; if (VOZ) u.voice = VOZ; return u;
   }
   const btnHablar = (texto) => h('button', { class: 'hablar', 'aria-label': 'escuchar', onclick: (e) => { e.stopPropagation(); habla(typeof texto === 'function' ? texto() : texto); } }, '🔊');
 
@@ -656,7 +661,7 @@ const App = (() => {
   }
 
   /* ---------------- Arranque ---------------- */
-  const VERSION = '642d73e6796a';
+  const VERSION = 'cea9f409438b';
   let ACTUALIZANDO = false;
   // Cada vez que se abre: una consulta pequeñita (version.json). Si es la misma versión, no se descarga nada.
   async function buscarActualizacion(reg) {
@@ -691,5 +696,5 @@ const App = (() => {
     pila.length = 0; ir(pantallaBloqueo);
   }
 
-  return { Musica, pj, pjPorNombre, guia, arrancar, MOTORES, h, $, mezclar, azar, ent, ir, atras, abrir: (id) => ir(jugar, id), pantalla: (n) => ir({ asamblea, mundos, pegatinas, panelPadres, portada, inicio, elegirGuia }[n]), area: (id) => ir(area, id), mundo: (id) => ir(mundo, id), datos: () => D };
+  return { hablaUtt, Musica, pj, pjPorNombre, guia, arrancar, MOTORES, h, $, mezclar, azar, ent, ir, atras, abrir: (id) => ir(jugar, id), pantalla: (n) => ir({ asamblea, mundos, pegatinas, panelPadres, portada, inicio, elegirGuia }[n]), area: (id) => ir(area, id), mundo: (id) => ir(mundo, id), datos: () => D };
 })();

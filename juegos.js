@@ -128,26 +128,31 @@
 
   /* Memory (Parejas) */
   M.memory = (a, d) => {
-    const pares = a.mezclar(d.pares).slice(0, 6);
-    const cartas = a.mezclar(pares.flatMap((p, k) => [{ t: p[0], k }, { t: p[1], k }]));
-    let abiertas = [], hechos = 0, bloqueo = false;
-    const rej = a.h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '14px', maxWidth: '760px', margin: '0 auto', width: '100%' } });
+    // Parejas iguales: se dan la vuelta dos cartas y hay que encontrar las dos iguales. Al acertar se lee el nombre.
+    const pares = a.mezclar(d.pares).slice(0, d.max || 8);
+    const cartas = a.mezclar(pares.flatMap((p, k) => [{ t: p[0], n: p[1], k }, { t: p[0], n: p[1], k }]));
+    let abiertas = [], hechos = 0, bloqueo = false, intentos = 0;
+    const cols = cartas.length > 12 ? 4 : 4;
+    const rej = a.h('div', { class: 'memory', style: { gridTemplateColumns: `repeat(${cols},1fr)` } });
+    const cara = (c) => String(c.t).startsWith('pj:') ? a.pj(c.t.slice(3), 'pj', 0) : a.h('span', { class: 'memo-emo' }, c.t);
+    const nombre = a.h('div', { class: 'memo-nombre' });
     cartas.forEach(c => {
-      const b = a.h('button', { class: 'carta' }, '❓');
+      const b = a.h('button', { class: 'carta memo' }, a.h('div', { class: 'memo-dorso' }, '⭐'), a.h('div', { class: 'memo-cara' }, cara(c), a.h('b', {}, c.n)));
       b.onclick = () => {
-        if (bloqueo || b.classList.contains('vuelta') || b.classList.contains('hecha')) return;
+        if (bloqueo || b.classList.contains('vuelta')) return;
         b.classList.add('vuelta'); a.sfx.clic(); abiertas.push([b, c]);
-        if (String(c.t).startsWith('pj:')) { b.classList.add('conpj'); b.replaceChildren(a.pj(c.t.slice(3), 'pj', 0)); }
-        else { if (esEmoji(c.t)) b.classList.add('emoji'); b.textContent = c.t; if (!esEmoji(c.t)) a.habla(c.t, 1); }
         if (abiertas.length === 2) {
-          const [[b1, c1], [b2, c2]] = abiertas; abiertas = [];
-          if (c1.k === c2.k) { a.acierto(); [b1, b2].forEach(x => x.classList.add('hecha')); hechos++; a.progreso(hechos, pares.length); if (hechos === pares.length) a.espera(() => a.fin(), 800); }
-          else { bloqueo = true; a.fallo(); setTimeout(() => { [b1, b2].forEach(x => { x.classList.remove('vuelta', 'emoji', 'conpj'); x.textContent = '❓'; }); bloqueo = false; }, 1100); }
+          const [[b1, c1], [b2, c2]] = abiertas; abiertas = []; intentos++;
+          if (c1.k === c2.k) {
+            a.acierto(); [b1, b2].forEach(x => x.classList.add('hecha')); hechos++; a.progreso(hechos, pares.length);
+            nombre.textContent = c1.n; nombre.classList.remove('pop'); void nombre.offsetWidth; nombre.classList.add('pop'); a.habla(c1.n);
+            if (hechos === pares.length) a.espera(() => a.fin('Lo has hecho en ' + intentos + ' intentos'), 1200);
+          } else { bloqueo = true; a.fallo(); setTimeout(() => { [b1, b2].forEach(x => x.classList.remove('vuelta')); bloqueo = false; }, 1100); }
         }
       };
       rej.append(b);
     });
-    a.cuerpo.replaceChildren(a.instr(a.j.instr || 'Busca las parejas'), rej);
+    a.cuerpo.replaceChildren(a.instr(a.j.instr && !/con su|cada/.test(a.j.instr) ? a.j.instr : 'Encuentra las parejas iguales'), nombre, rej);
     a.cuerpo.style.overflowY = 'auto';
   };
 
@@ -191,28 +196,41 @@
   };
 
   /* Aplastatopos */
+  const TOPO_SVG = `<svg viewBox="0 0 200 220" class="topo-svg"><defs><radialGradient id="tp" cx="40%" cy="35%"><stop offset="0" stop-color="#b98458"/><stop offset="1" stop-color="#7a4a26"/></radialGradient></defs>
+    <ellipse cx="100" cy="150" rx="78" ry="80" fill="url(#tp)"/><ellipse cx="100" cy="170" rx="52" ry="50" fill="#e9c49a"/>
+    <circle cx="70" cy="105" r="17" fill="#fff"/><circle cx="130" cy="105" r="17" fill="#fff"/><circle cx="74" cy="108" r="9" fill="#222"/><circle cx="126" cy="108" r="9" fill="#222"/>
+    <circle cx="77" cy="104" r="3" fill="#fff"/><circle cx="129" cy="104" r="3" fill="#fff"/><ellipse cx="100" cy="132" rx="16" ry="12" fill="#ff7aa2"/>
+    <path d="M86 146 Q100 158 114 146" stroke="#4a2a12" stroke-width="4" fill="none" stroke-linecap="round"/><rect x="92" y="150" width="7" height="9" rx="2" fill="#fff"/><rect x="101" y="150" width="7" height="9" rx="2" fill="#fff"/>
+    <ellipse cx="38" cy="160" rx="16" ry="12" fill="#e9c49a"/><ellipse cx="162" cy="160" rx="16" ry="12" fill="#e9c49a"/>
+    <path d="M40 78 Q100 30 160 78 L150 86 Q100 56 50 86 Z" fill="#ffd21f"/><rect x="44" y="80" width="112" height="10" rx="5" fill="#f0a500"/></svg>`;
   M.topos = (a, d) => {
-    const META = 10; let buenos = 0, vidas = 3;
-    const marc = a.h('div', { class: 'instr' });
-    const act = () => { marc.textContent = '🔨 ' + buenos + ' / ' + META + '    ' + '❤️'.repeat(vidas); a.progreso(buenos, META); };
-    const hoyos = Array.from({ length: 6 }, () => { const t = a.h('button', { class: 'topo' }); const hh = a.h('div', { class: 'agujero' }, t); return { hh, t, libre: true }; });
-    hoyos.forEach(o => o.t.onclick = () => {
-      if (!o.t.classList.contains('arriba') || o.t.dataset.bloq) return; o.t.dataset.bloq = 1;
-      if (o.si) { a.acierto(o.t); buenos++; } else { a.fallo(o.t); vidas--; }
-      o.t.classList.remove('arriba'); act();
-      if (buenos >= META || vidas <= 0) { a.espera(() => a.fin(vidas <= 0 ? '¡Inténtalo otra vez!' : ''), 600); fin = true; }
+    const META = 10; let buenos = 0, vidas = 3, fin = false;
+    const marc = a.h('div', { class: 'topos-marcador' });
+    const act = () => { marc.replaceChildren(a.h('span', {}, '🔨 ' + buenos + ' / ' + META), a.h('span', {}, '❤️'.repeat(vidas) + '🤍'.repeat(3 - vidas))); a.progreso(buenos, META); };
+    const hoyos = Array.from({ length: 6 }, () => {
+      const cartel = a.h('div', { class: 'topo-cartel' });
+      const t = a.h('button', { class: 'topo2', html: TOPO_SVG }); t.prepend(cartel);
+      const hh = a.h('div', { class: 'agujero2' }, a.h('div', { class: 'agujero2-hueco' }), t, a.h('div', { class: 'agujero2-tierra' }));
+      return { hh, t, cartel };
     });
-    let fin = false;
+    hoyos.forEach(o => o.t.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (!o.t.classList.contains('arriba') || o.t.dataset.bloq || fin) return; o.t.dataset.bloq = 1;
+      o.t.classList.add('golpe'); setTimeout(() => o.t.classList.remove('golpe'), 300);
+      if (o.si) { a.acierto(); buenos++; a.habla(o.pal); } else { a.fallo(); vidas--; a.di('«' + o.pal + '» no vale. ' + d.pregunta.replace(/^Aplasta SOLO /i, 'Busca ')); }
+      setTimeout(() => o.t.classList.remove('arriba'), 250); act();
+      if (buenos >= META || vidas <= 0) { fin = true; a.espera(() => a.fin(vidas <= 0 ? '¡Inténtalo otra vez!' : ''), 700); }
+    }));
     const salir = () => {
       if (fin) return;
       const libres = hoyos.filter(o => !o.t.classList.contains('arriba')); if (!libres.length) return;
-      const o = a.azar(libres); o.si = Math.random() < 0.55; const pal = a.azar(o.si ? d.si : d.no);
-      o.t.replaceChildren('🐹', a.h('b', {}, pal)); delete o.t.dataset.bloq; o.t.classList.add('arriba');
-      a.espera(() => o.t.classList.remove('arriba'), 2600);
+      const o = a.azar(libres); o.si = Math.random() < 0.55; o.pal = a.azar(o.si ? d.si : d.no);
+      o.cartel.textContent = o.pal; delete o.t.dataset.bloq; o.t.classList.add('arriba');
+      a.espera(() => o.t.classList.remove('arriba'), 2800);
     };
-    a.temporizador(salir, 1300); a.espera(salir, 300);
-    act();
-    a.cuerpo.replaceChildren(a.instr(d.pregunta), marc, a.h('div', { class: 'topos' }, hoyos.map(o => o.hh)));
+    a.pista(d.pregunta);
+    a.temporizador(salir, 1250); a.espera(salir, 300); act();
+    a.cuerpo.replaceChildren(a.instr(d.pregunta), marc, a.h('div', { class: 'campo-topos' }, hoyos.map(o => o.hh)));
   };
 
   /* Explotaglobos */
@@ -379,14 +397,16 @@
     const pre = a.mezclar(d.preguntas).slice(0, 8); let hechas = 0;
     const col = ['#ef4a5c', '#3d8bfd', '#f39c33', '#2fb45a', '#9b5cff', '#e94fa5', '#00a8a8', '#ffb648'];
     const cajas = a.h('div', { class: 'cajas' }, pre.map((p, k) => {
-      const b = a.h('button', { class: 'caja-regalo', style: { '--c': col[k % col.length] } }, '🎁');
+      const puerta = d.piel === 'puertas';
+      const b = puerta ? a.h('button', { class: 'puerta', style: { '--c': col[k % col.length] } }, a.h('div', { class: 'puerta-hoja' }, a.h('span', { class: 'puerta-num' }, k + 1), a.h('i', { class: 'pomo' })), a.h('div', { class: 'puerta-luz' }))
+        : a.h('button', { class: 'caja-regalo', style: { '--c': col[k % col.length] } }, '🎁');
       b.onclick = () => {
-        if (b.classList.contains('abierta')) return; a.sfx.pop();
+        if (b.classList.contains('abierta')) return; a.sfx.pop(); if (puerta) b.classList.add('entreabierta');
         let fallado = false;
         const ops = a.h('div', { class: 'opciones' }, a.mezclar([p.r, ...p.mal]).map(o => {
           const x = a.h('button', { class: 'op', onclick: () => {
             if (x.dataset.bloq) return;
-            if (o === p.r) { fallado ? a.sfx.bien() : a.acierto(x); x.classList.add('ok'); setTimeout(() => { a.cerrarModal(); b.classList.add('abierta'); b.textContent = '✅'; hechas++; a.progreso(hechas, pre.length); if (hechas === pre.length) a.fin(); }, 800); }
+            if (o === p.r) { fallado ? a.sfx.bien() : a.acierto(x); x.classList.add('ok'); setTimeout(() => { a.cerrarModal(); b.classList.add('abierta'); if (!puerta) b.textContent = '✅'; hechas++; a.progreso(hechas, pre.length); if (hechas === pre.length) a.fin(); }, 800); }
             else { fallado ? a.sfx.mal() : a.fallo(x); fallado = true; x.classList.add('mal'); x.dataset.bloq = 1; }
           } }, o); return x;
         }));
@@ -394,7 +414,7 @@
       };
       return b;
     }));
-    a.cuerpo.replaceChildren(a.instr('Abre todas las cajas'), cajas);
+    a.cuerpo.replaceChildren(a.instr(d.piel === 'puertas' ? 'Abre todas las puertas: detrás de cada una hay un reto' : 'Abre todas las cajas'), cajas);
   };
 
   /* Tarjetas flash */
@@ -512,9 +532,9 @@
     const g = (lo, hi) => a.ent(lo, hi);
     let q, r, op, pista;
     if (tipo === 'suma') { const x = g(12, 65), y = g(8, 34); q = `${quien} tiene ${x} ${cosa} y ${otro} le da ${y} más. ¿${Cu} ${cosa} tiene ahora?`; r = x + y; op = `${x} + ${y}`; pista = 'Le dan más… ¡sumamos! Empieza por las unidades.'; }
-    else if (tipo === 'resta') { const x = g(30, 95), y = g(9, x - 8); q = `${quien} tenía ${x} ${cosa} y regala ${y}. ¿${Cu} le quedan?`; r = x - y; op = `${x} − ${y}`; pista = 'Regala… ¡restamos! Al número grande le quitamos el pequeño.'; }
-    else if (tipo === 'comparar') { const x = g(40, 90), y = g(10, x - 5); q = `${quien} tiene ${x} ${cosa} y ${otro} tiene ${y}. ¿${Cu} tiene ${quien} más que ${otro}?`; r = x - y; op = `${x} − ${y}`; pista = '«¿Cuántas más?» se resuelve restando.'; }
-    else if (tipo === 'faltan') { const x = g(10, 60), y = g(x + 5, 99); q = `${quien} tiene ${x} ${cosa} y quiere llegar a ${y}. ¿${Cu} le faltan?`; r = y - x; op = `${y} − ${x}`; pista = 'Para saber cuánto falta: lo que quiere menos lo que tiene.'; }
+    else if (tipo === 'resta') { const x = g(30, 95), y = g(9, x - 8); q = `${quien} tenía ${x} ${cosa} y regala ${y}. ¿${Cu} ${cosa} le quedan?`; r = x - y; op = `${x} − ${y}`; pista = 'Regala… ¡restamos! Al número grande le quitamos el pequeño.'; }
+    else if (tipo === 'comparar') { const x = g(40, 90), y = g(10, x - 5); q = `${quien} tiene ${x} ${cosa} y ${otro} tiene ${y}. ¿${Cu} ${cosa} más que ${otro} tiene ${quien}?`; r = x - y; op = `${x} − ${y}`; pista = '«¿Cuántas más?» se resuelve restando.'; }
+    else if (tipo === 'faltan') { const x = g(10, 60), y = g(x + 5, 99); q = `${quien} tiene ${x} ${cosa} y quiere tener ${y}. ¿${Cu} ${cosa} le faltan?`; r = y - x; op = `${y} − ${x}`; pista = 'Para saber cuánto falta: lo que quiere menos lo que tiene.'; }
     else if (tipo === 'doble') { const x = g(5, 45); q = `${otro} tiene ${x} ${cosa} y ${quien} tiene el doble. ¿${Cu} tiene ${quien}?`; r = x * 2; op = `${x} + ${x}`; pista = 'El doble es sumar el mismo número dos veces.'; }
     else { const x = g(10, 30), y = g(10, 30), z = g(5, 20); q = `${quien} tiene ${x} ${cosa}, ${otro} tiene ${y} y encuentran ${z} más. ¿${Cu} tienen en total?`; r = x + y + z; op = `${x} + ${y} + ${z}`; pista = 'En total… ¡suma todo!'; }
     const mal = new Set(); for (const v of [r + 10, r - 10, r + 1, r - 1, r + 2]) { if (v >= 0 && v !== r && mal.size < 3) mal.add(v); }
